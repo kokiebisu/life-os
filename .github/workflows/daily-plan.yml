@@ -35,26 +35,12 @@ jobs:
           if [ -z "$DATE" ]; then DATE=$(TZ=Asia/Tokyo date +%Y-%m-%d); fi
           for f in planning/events/${DATE}.md aspects/*/events/${DATE}.md; do
             if [ -f "$f" ]; then
-              # routine events are synced by notion-sync-schedule.ts, skip here
+              # routine events are synced by notion-sync-ai-plan.ts, skip here
               echo "$f" | grep -q "/routine/" && echo "Skipping $f (routine)" && continue
               echo "Syncing $f..."
               bun run scripts/notion-sync-event-file.ts --file "$f"
             fi
           done
-
-      - name: Sync routine schedule to Notion Calendar
-        env:
-          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
-          NOTION_TASKS_DB: ${{ secrets.NOTION_TASKS_DB }}
-          NOTION_EVENTS_DB: ${{ secrets.NOTION_EVENTS_DB }}
-          NOTION_GUITAR_DB: ${{ secrets.NOTION_GUITAR_DB }}
-          NOTION_MEALS_DB: ${{ secrets.NOTION_MEALS_DB }}
-          NOTION_GROCERIES_DB: ${{ secrets.NOTION_GROCERIES_DB }}
-          NOTION_TODO_DB: ${{ secrets.NOTION_TODO_DB }}
-        run: |
-          DATE="${{ inputs.date || '' }}"
-          if [ -z "$DATE" ]; then DATE=$(TZ=Asia/Tokyo date +%Y-%m-%d); fi
-          bun run scripts/notion-sync-schedule.ts --date "$DATE"
 
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code

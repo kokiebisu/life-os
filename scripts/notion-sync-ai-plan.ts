@@ -1,9 +1,13 @@
 #!/usr/bin/env bun
 /**
- * AI デイリープラン → Notion ルーティン同期
+ * AI デイリープラン → Notion ルーティン同期（クリーンスレート方式）
  *
  * AI 生成のデイリープラン markdown から 🔹（ルーティン）エントリを抽出し、
- * Notion routine DB に未登録のものを追加、時間が異なるものを更新する。
+ * 既存の未完了ルーティンを削除してからクリーンに登録する。
+ *
+ * 特殊処理:
+ *   - ギター練習 → guitar DB の次の Lesson に日付セット
+ *   - ジム → A/B ローテーション判定 + メニューブロック付き
  *
  * 使い方:
  *   bun run scripts/notion-sync-ai-plan.ts --date 2026-02-20
@@ -14,31 +18,20 @@ import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import {
   getScheduleDbConfig, notionFetch, parseArgs, todayJST,
-  pickTaskIcon, pickCover, queryDbByDateCached, normalizePages,
+  pickTaskIcon, pickCover, queryDbByDate, normalizePages,
   clearNotionCache,
 } from "./lib/notion";
 
 const ROOT = join(import.meta.dir, "..");
 
+const GUITAR_LABEL = "ギター練習";
+const GYM_LABEL = "ジム";
+
+// --- Types & Helpers ---
+
 interface ScheduleJsonRoutine {
   label: string;
   [key: string]: unknown;
-}
-
-/** Load routine labels from schedule.json to validate against */
-function loadRoutineLabels(): string[] {
-  const configPath = join(ROOT, "aspects", "routine", "schedule.json");
-  if (!existsSync(configPath)) return [];
-  const config = JSON.parse(readFileSync(configPath, "utf-8"));
-  return (config.routines || []).map((r: ScheduleJsonRoutine) => r.label.toLowerCase());
-}
-
-/** Check if a label matches any routine in schedule.json (prefix match) */
-function isRoutineLabel(label: string, routineLabels: string[]): boolean {
-  const normalized = label.toLowerCase();
-  return routineLabels.some(
-    (r) => normalized.startsWith(r) || r.startsWith(normalized),
-  );
 }
 
 interface PlanEntry {
@@ -47,19 +40,24 @@ interface PlanEntry {
   label: string; // "読書"
 }
 
-function timeToMinutes(t: string): number {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
+function loadRoutineLabels(): string[] {
+  const configPath = join(ROOT, "aspects", "routine", "schedule.json");
+  if (!existsSync(configPath)) return [];
+  const config = JSON.parse(readFileSync(configPath, "utf-8"));
+  return (config.routines || []).map((r: ScheduleJsonRoutine) => r.label.toLowerCase());
+}
+
+function isRoutineLabel(label: string, routineLabels: string[]): boolean {
+  const normalized = label.toLowerCase();
+  return routineLabels.some(
+    (r) => normalized.startsWith(r) || r.startsWith(normalized),
+  );
 }
 
 function getTimeFromISO(iso: string): string {
   return iso.match(/T(\d{2}:\d{2})/)?.[1] || "00:00";
 }
 
-/**
- * Parse daily plan markdown for 🔹 (routine) entries.
- * Handles both table format and plain text format.
- */
 function parseDailyPlan(filePath: string): PlanEntry[] {
   const content = readFileSync(filePath, "utf-8");
   const entries: PlanEntry[] = [];
@@ -92,11 +90,192 @@ function parseDailyPlan(filePath: string): PlanEntry[] {
   return entries;
 }
 
-function labelsMatch(planLabel: string, notionTitle: string): boolean {
-  const a = planLabel.toLowerCase();
-  const b = notionTitle.toLowerCase();
-  return a.includes(b) || b.includes(a);
+// --- Phase 1: Clean Slate ---
+
+async function cleanExistingRoutines(date: string, dryRun: boolean): Promise<number> {
+  const { apiKey, dbId, config } = getScheduleDbConfig("routine");
+  const data = await queryDbByDate(apiKey, dbId, config, date, date);
+  const existing = normalizePages(data.results, config, "routine");
+
+  let deleted = 0;
+  for (const entry of existing) {
+    if (entry.status === "Done" || entry.status === "完了") continue;
+    const time = entry.start.includes("T") ? getTimeFromISO(entry.start) : "?";
+    const endTime = entry.end ? getTimeFromISO(entry.end) : "?";
+    console.log(`  CLEAN: ${entry.title} ${time}-${endTime}`);
+    if (!dryRun) {
+      await notionFetch(apiKey, `/pages/${entry.id}`, { archived: true }, "PATCH");
+    }
+    deleted++;
+  }
+
+  return deleted;
 }
+
+// --- Guitar Handling ---
+
+async function findNextLesson(): Promise<{ id: string; title: string } | null> {
+  const { apiKey, dbId } = getScheduleDbConfig("guitar");
+  const resp = await notionFetch(apiKey, "/databases/" + dbId + "/query", {
+    filter: {
+      and: [
+        { property: "名前", title: { starts_with: "Lesson" } },
+        { property: "日付", date: { is_empty: true } },
+        { property: "ステータス", status: { does_not_equal: "完了" } },
+      ],
+    },
+    sorts: [{ property: "名前", direction: "ascending" }],
+    page_size: 1,
+  });
+  const page = resp.results?.[0];
+  if (!page) return null;
+  const title = page.properties?.["名前"]?.title?.[0]?.plain_text || "";
+  return { id: page.id, title };
+}
+
+async function findExistingGuitarEntry(date: string): Promise<{ id: string; title: string } | null> {
+  const { apiKey, dbId, config } = getScheduleDbConfig("guitar");
+  const data = await queryDbByDate(apiKey, dbId, config, date, date);
+  const entries = normalizePages(data.results, config, "guitar");
+  if (entries.length > 0) return { id: entries[0].id, title: entries[0].title };
+  return null;
+}
+
+// --- Gym Handling ---
+
+async function getGymSessionCount(date: string): Promise<number> {
+  const d = new Date(date + "T12:00:00+09:00");
+  const day = d.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + mondayOffset);
+  const weekStart = monday.toISOString().slice(0, 10);
+
+  const { apiKey, dbId } = getScheduleDbConfig("routine");
+  const resp = await notionFetch(apiKey, "/databases/" + dbId + "/query", {
+    filter: {
+      and: [
+        { property: "Name", title: { starts_with: GYM_LABEL } },
+        { property: "日付", date: { on_or_after: weekStart } },
+        { property: "日付", date: { before: date } },
+      ],
+    },
+  });
+  return resp.results?.length || 0;
+}
+
+function gymMenuBlocks(menuType: "A" | "B"): unknown[] {
+  if (menuType === "A") {
+    return [
+      {
+        type: "callout",
+        callout: {
+          rich_text: [
+            { type: "text", text: { content: "A日: マシン筋トレ + ウォーキング（50分）" }, annotations: { bold: true } },
+          ],
+          icon: { type: "emoji", emoji: "💪" },
+          color: "blue_background",
+        },
+      },
+      { type: "divider", divider: {} },
+      {
+        type: "heading_3",
+        heading_3: { rich_text: [{ type: "text", text: { content: "🏃 インクライン・ウォーキング（20分）" } }] },
+      },
+      {
+        type: "quote",
+        quote: { rich_text: [{ type: "text", text: { content: "ウォームアップ兼有酸素。傾斜を上げて歩くだけ。走らなくていい。" } }] },
+      },
+      {
+        type: "bulleted_list_item",
+        bulleted_list_item: { rich_text: [
+          { type: "text", text: { content: "傾斜" }, annotations: { bold: true } },
+          { type: "text", text: { content: " 10〜12% / " } },
+          { type: "text", text: { content: "速度" }, annotations: { bold: true } },
+          { type: "text", text: { content: " 5〜6 km/h / " } },
+          { type: "text", text: { content: "心拍数" }, annotations: { bold: true } },
+          { type: "text", text: { content: " 120〜140bpm" } },
+        ] },
+      },
+      { type: "divider", divider: {} },
+      {
+        type: "heading_3",
+        heading_3: { rich_text: [{ type: "text", text: { content: "🏋️ マシン筋トレ（30分）" } }] },
+      },
+      {
+        type: "quote",
+        quote: { rich_text: [{ type: "text", text: { content: "各種目の間に60秒休憩。15回3セットが楽にできたら次回から重量UP。" } }] },
+      },
+      {
+        type: "to_do",
+        to_do: { rich_text: [
+          { type: "text", text: { content: "ベンチプレス 3×15" }, annotations: { bold: true } },
+          { type: "text", text: { content: "  — バーのみ(20kg)〜。セーフティバー必須。胸に下ろして押し上げる" } },
+        ], checked: false },
+      },
+      {
+        type: "to_do",
+        to_do: { rich_text: [
+          { type: "text", text: { content: "ラットプルダウン 3×15" }, annotations: { bold: true } },
+          { type: "text", text: { content: "  — 15kg〜。バーを鎖骨まで引き下ろす。肘を脇腹に向かって引く意識" } },
+        ], checked: false },
+      },
+      {
+        type: "to_do",
+        to_do: { rich_text: [
+          { type: "text", text: { content: "レッグプレス 3×15" }, annotations: { bold: true } },
+          { type: "text", text: { content: "  — 30kg〜。膝を伸ばしきらない。足の裏全体で押す" } },
+        ], checked: false },
+      },
+      {
+        type: "to_do",
+        to_do: { rich_text: [
+          { type: "text", text: { content: "アブドミナル 3×15" }, annotations: { bold: true } },
+          { type: "text", text: { content: "  — おへそを覗き込むように丸める。腕で引っ張らない" } },
+        ], checked: false },
+      },
+    ];
+  } else {
+    return [
+      {
+        type: "callout",
+        callout: {
+          rich_text: [
+            { type: "text", text: { content: "B日: ウォーキングのみ（40分）" }, annotations: { bold: true } },
+          ],
+          icon: { type: "emoji", emoji: "🏃" },
+          color: "green_background",
+        },
+      },
+      { type: "divider", divider: {} },
+      {
+        type: "heading_3",
+        heading_3: { rich_text: [{ type: "text", text: { content: "🏃 インクライン・ウォーキング（40分）" } }] },
+      },
+      {
+        type: "quote",
+        quote: { rich_text: [{ type: "text", text: { content: "A日の筋トレ疲労を回復しながら脂肪を燃やす日。走らなくていい。" } }] },
+      },
+      {
+        type: "bulleted_list_item",
+        bulleted_list_item: { rich_text: [
+          { type: "text", text: { content: "傾斜" }, annotations: { bold: true } },
+          { type: "text", text: { content: " 10〜12% / " } },
+          { type: "text", text: { content: "速度" }, annotations: { bold: true } },
+          { type: "text", text: { content: " 5〜6 km/h / " } },
+          { type: "text", text: { content: "心拍数" }, annotations: { bold: true } },
+          { type: "text", text: { content: " 120〜140bpm" } },
+        ] },
+      },
+      {
+        type: "bulleted_list_item",
+        bulleted_list_item: { rich_text: [{ type: "text", text: { content: "手すりに掴まらない。ペースを一定に保つ" } }] },
+      },
+    ];
+  }
+}
+
+// --- Main ---
 
 async function main() {
   const { flags, opts } = parseArgs();
@@ -138,86 +317,73 @@ async function main() {
     `Found ${planEntries.length} routine entries in daily plan for ${date}`,
   );
 
-  // Get existing Notion routine entries
-  const { apiKey, dbId, config } = getScheduleDbConfig("routine");
-  const data = await queryDbByDateCached(apiKey, dbId, config, date, date);
-  const existing = normalizePages(data.results, config, "routine");
+  // Phase 1: Clean existing non-completed routine entries
+  console.log(`\nPhase 1: Cleaning existing routine entries...`);
+  const cleaned = await cleanExistingRoutines(date, dryRun);
+  console.log(`Cleaned ${cleaned} entries\n`);
+  if (cleaned > 0 && !dryRun) {
+    clearNotionCache();
+  }
 
+  // Phase 2: Create entries from AI plan
+  console.log(`Phase 2: Creating entries from AI plan...`);
+  const { apiKey, dbId, config } = getScheduleDbConfig("routine");
   let created = 0;
-  let updated = 0;
-  let skipped = 0;
-  const matchedNotionIds = new Set<string>();
+  let guitarCount = 0;
 
   for (const entry of planEntries) {
     const expectedStart = `${date}T${entry.start}:00+09:00`;
     const expectedEnd = `${date}T${entry.end}:00+09:00`;
-    const entryStartMin = timeToMinutes(entry.start);
 
-    // Find unmatched Notion entries with same label
-    const candidates = existing.filter((e) => {
-      if (matchedNotionIds.has(e.id)) return false;
-      return labelsMatch(entry.label, e.title);
-    });
-
-    if (candidates.length > 0) {
-      // Find closest by start time
-      const closest = candidates.reduce((best, e) => {
-        const eDist = Math.abs(
-          timeToMinutes(getTimeFromISO(e.start)) - entryStartMin,
-        );
-        const bestDist = Math.abs(
-          timeToMinutes(getTimeFromISO(best.start)) - entryStartMin,
-        );
-        return eDist < bestDist ? e : best;
-      });
-
-      const closestStartMin = timeToMinutes(getTimeFromISO(closest.start));
-      const timeDiff = Math.abs(closestStartMin - entryStartMin);
-
-      if (timeDiff <= 60) {
-        // Close enough → same logical entry
-        matchedNotionIds.add(closest.id);
-
-        const existingStart = getTimeFromISO(closest.start);
-        const existingEnd = closest.end
-          ? getTimeFromISO(closest.end)
-          : "";
-
-        if (existingStart === entry.start && existingEnd === entry.end) {
-          console.log(
-            `  SKIP: ${entry.label} ${entry.start}-${entry.end} (already registered)`,
-          );
-          skipped++;
-        } else {
-          console.log(
-            `  UPDATE: ${entry.label} ${existingStart}-${existingEnd} → ${entry.start}-${entry.end}`,
-          );
-          if (!dryRun) {
-            await notionFetch(
-              apiKey,
-              `/pages/${closest.id}`,
-              {
-                properties: {
-                  [config.dateProp]: {
-                    date: { start: expectedStart, end: expectedEnd },
-                  },
-                },
-              },
-              "PATCH",
-            );
-          }
-          updated++;
+    // --- Guitar: schedule Lesson in guitar DB ---
+    if (entry.label === GUITAR_LABEL) {
+      const existing = await findExistingGuitarEntry(date);
+      if (existing) {
+        console.log(`  UPDATE: ${existing.title} → ${entry.start}-${entry.end} [guitar]`);
+        if (!dryRun) {
+          const { apiKey: gApiKey } = getScheduleDbConfig("guitar");
+          await notionFetch(gApiKey, `/pages/${existing.id}`, {
+            properties: {
+              "日付": { date: { start: expectedStart, end: expectedEnd } },
+            },
+          }, "PATCH");
         }
-        continue;
+      } else {
+        const lesson = await findNextLesson();
+        if (!lesson) {
+          console.log(`  ⚠ 未スケジュールの Lesson が見つかりません [guitar]`);
+          continue;
+        }
+        console.log(`  CREATE: ${lesson.title} ${entry.start}-${entry.end} [guitar]`);
+        if (!dryRun) {
+          const { apiKey: gApiKey } = getScheduleDbConfig("guitar");
+          await notionFetch(gApiKey, `/pages/${lesson.id}`, {
+            properties: {
+              "日付": { date: { start: expectedStart, end: expectedEnd } },
+            },
+          }, "PATCH");
+        }
       }
-      // timeDiff > 60 → different block, fall through to create
+      guitarCount++;
+      continue;
     }
 
-    // No close match → create new entry
-    console.log(`  CREATE: ${entry.label} ${entry.start}-${entry.end}`);
+    // --- Gym: A/B rotation + menu blocks ---
+    const isGym = entry.label === GYM_LABEL || entry.label.startsWith(GYM_LABEL);
+    let gymMenu: "A" | "B" | null = null;
+
+    if (isGym) {
+      const count = await getGymSessionCount(date);
+      gymMenu = count % 2 === 0 ? "A" : "B";
+      console.log(
+        `  CREATE: ${entry.label}（${gymMenu}日: ${gymMenu === "A" ? "マシン筋トレ+ウォーキング" : "ウォーキングのみ"}）${entry.start}-${entry.end}`,
+      );
+    } else {
+      console.log(`  CREATE: ${entry.label} ${entry.start}-${entry.end}`);
+    }
 
     if (!dryRun) {
-      await notionFetch(apiKey, "/pages", {
+      const createBody: Record<string, unknown> = {
         parent: { database_id: dbId },
         properties: {
           [config.titleProp]: {
@@ -229,17 +395,23 @@ async function main() {
         },
         icon: pickTaskIcon(entry.label),
         cover: pickCover(),
-      });
+      };
+
+      if (isGym && gymMenu) {
+        createBody.children = gymMenuBlocks(gymMenu);
+      }
+
+      await notionFetch(apiKey, "/pages", createBody);
     }
     created++;
   }
 
-  if (created > 0 || updated > 0) {
+  if ((created > 0 || guitarCount > 0) && !dryRun) {
     clearNotionCache();
   }
 
   console.log(
-    `\nDone! Created: ${created}, Updated: ${updated}, Skipped: ${skipped}`,
+    `\nDone! Created: ${created}, Guitar: ${guitarCount}, Cleaned: ${cleaned}`,
   );
 }
 
