@@ -32,6 +32,7 @@ A sacred space for daily spiritual practice and personal connection with God.
 - 聖書箇所を引用するときは**全文を書く**（参照だけで省略しない）
 - **章を一緒に読む場面では全節を省略せず掲載する**（勝手に抜粋しない）
 - 引用はブロック引用（`>`）で記載し、末尾に書名・章・節を明記する
+- **翻訳の指定:** 英語は **ESV（English Standard Version）**、日本語は **新改訳2017** を使用する
 
 ### 記録のフォーマット（統一テンプレート）
 
