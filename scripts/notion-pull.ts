@@ -117,10 +117,22 @@ function normalizeTitle(title: string): string {
   return title.replace(/[（）()]/g, "").replace(/\s+/g, "").toLowerCase();
 }
 
+// Meal prefixes that can change between sync cycles (朝食→昼食 etc.)
+const MEAL_PREFIXES = /^(朝食|昼食|夕食|間食|おやつ|ブランチ)/;
+
 function titlesMatch(a: string, b: string): boolean {
   const na = normalizeTitle(a);
   const nb = normalizeTitle(b);
-  return na.includes(nb) || nb.includes(na);
+  if (na.includes(nb) || nb.includes(na)) return true;
+
+  // Meal content match: 朝食（X）vs 昼食（X）→ match if food content X is the same
+  const contentA = a.replace(MEAL_PREFIXES, "");
+  const contentB = b.replace(MEAL_PREFIXES, "");
+  if (contentA !== a && contentB !== b) {
+    return normalizeTitle(contentA) === normalizeTitle(contentB);
+  }
+
+  return false;
 }
 
 // --- Time extraction from ISO string ---

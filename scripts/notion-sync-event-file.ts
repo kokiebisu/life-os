@@ -112,10 +112,22 @@ function normalizeTitle(title: string): string {
     .toLowerCase();
 }
 
+// Meal prefixes that can change between sync cycles (朝食→昼食 etc.)
+const MEAL_PREFIXES = /^(朝食|昼食|夕食|間食|おやつ|ブランチ)/;
+
 function titlesMatch(local: string, notion: string): boolean {
   const a = normalizeTitle(local);
   const b = normalizeTitle(notion);
-  return a.includes(b) || b.includes(a);
+  if (a.includes(b) || b.includes(a)) return true;
+
+  // Meal content match: 朝食（X）vs 昼食（X）→ match if food content X is the same
+  const contentA = local.replace(MEAL_PREFIXES, "");
+  const contentB = notion.replace(MEAL_PREFIXES, "");
+  if (contentA !== local && contentB !== notion) {
+    return normalizeTitle(contentA) === normalizeTitle(contentB);
+  }
+
+  return false;
 }
 
 function findMatchingPage(
