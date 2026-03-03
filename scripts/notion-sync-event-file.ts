@@ -21,7 +21,7 @@ import { join, basename } from "path";
 import {
   type ScheduleDbName, type ScheduleDbConfig,
   SCHEDULE_DB_CONFIGS, getScheduleDbConfig, queryDbByDateCached, normalizePages,
-  notionFetch, parseArgs, pickTaskIcon, pickCover, clearNotionCache,
+  normalizeTitle, notionFetch, parseArgs, pickTaskIcon, pickCover, clearNotionCache,
 } from "./lib/notion";
 
 const ROOT = join(import.meta.dir, "..");
@@ -104,13 +104,6 @@ function parseEventFile(filePath: string): { date: string; events: ParsedEvent[]
 }
 
 // --- Matching ---
-
-function normalizeTitle(title: string): string {
-  return title
-    .replace(/[（）()]/g, "")
-    .replace(/\s+/g, "")
-    .toLowerCase();
-}
 
 // Meal prefixes that can change between sync cycles (朝食→昼食 etc.)
 const MEAL_PREFIXES = /^(朝食|昼食|夕食|間食|おやつ|ブランチ)/;
