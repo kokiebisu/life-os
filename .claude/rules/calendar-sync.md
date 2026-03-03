@@ -14,6 +14,10 @@ events > todo > guitar = sound > routine > meals > groceries
 - md を変更したら Notion も更新。逆も同様。片方だけで終わらせない
 - スケジュール変更後は `notion-list.ts --date` で全エントリを再確認する
 
+## 連鎖チェック（厳守）
+- 時間変更時: 前後の予定も連鎖チェック
+- 買い出し移動時: その買い出しで調達する食材を使う食事も確認・移動する
+
 ## 基本ルール
 - 1ブロック=1タスク（「A + B」「A or B」禁止）
 - ルーティンを events/ に書かない（routine DB 側で管理）
