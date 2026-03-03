@@ -77,6 +77,11 @@ memory-bank/             # セッション間の記憶（decisions.md）
 - **ツール:** Claude Code CLI, GitHub CLI
 - **起動:** `./dev` スクリプトで devcontainer 起動 + Claude Code 自動開始
 
+## 実装プラン実行
+
+- **常に Subagent-Driven（現セッション内）で実行する。** Parallel Session は使わない
+- 理由: タスクは順番依存が多く、1人リポジトリなのでワークツリー分離のメリットがない
+
 ## Memory Bank
 
 `memory-bank/decisions.md` に設計判断とその理由を記録する。重要な判断をしたら追記すること。
