@@ -428,3 +428,77 @@ export function getTimeFromISO(iso: string | undefined | null): string | null {
   const m = iso.match(/T(\d{2}:\d{2})/);
   return m ? m[1] : null;
 }
+
+export interface SimilarEntry {
+  id: string;
+  title: string;
+  db: ScheduleDbName;
+  start: string | null;
+  end: string | null;
+  matchType: "exact" | "similar";
+}
+
+/**
+ * 全スケジュール DB を横断して、指定日に類似タイトルのエントリを検索。
+ * options.start を指定すると、時間帯が異なるエントリを除外する（Devotion 朝/夜の区別用）。
+ */
+export async function findSimilarEntries(
+  date: string,
+  title: string,
+  options?: {
+    db?: ScheduleDbName;
+    start?: string;
+    end?: string;
+  },
+): Promise<SimilarEntry[]> {
+  const apiKey = getApiKey();
+  const normalizedNew = normalizeTitle(title);
+  const results: SimilarEntry[] = [];
+
+  const dbNames: ScheduleDbName[] = options?.db
+    ? [options.db]
+    : (Object.keys(SCHEDULE_DB_CONFIGS) as ScheduleDbName[]);
+
+  for (const dbName of dbNames) {
+    const dbSetup = getScheduleDbConfigOptional(dbName);
+    if (!dbSetup) continue;
+    const { dbId, config } = dbSetup;
+
+    let data: any;
+    try {
+      data = await queryDbByDateCached(apiKey, dbId, config, date, date);
+    } catch { continue; }
+
+    const pages: any[] = data.results || [];
+    for (const page of pages) {
+      const existingTitle = (page.properties?.[config.titleProp]?.title || [])
+        .map((t: any) => t.plain_text || "").join("");
+      const normalizedExisting = normalizeTitle(existingTitle);
+
+      const titleMatch = normalizedNew === normalizedExisting;
+      const titleSimilar = !titleMatch &&
+        (normalizedNew.includes(normalizedExisting) || normalizedExisting.includes(normalizedNew));
+
+      if (!titleMatch && !titleSimilar) continue;
+
+      const existingDate = page.properties?.[config.dateProp]?.date;
+      const existingStart = getTimeFromISO(existingDate?.start);
+      const existingEnd = getTimeFromISO(existingDate?.end);
+
+      // 時間帯が異なれば別エントリとして許可（Devotion 朝/夜等）
+      if (options?.start && existingStart && options.start !== existingStart) continue;
+      if (options?.end && existingEnd && options.end !== existingEnd) continue;
+
+      results.push({
+        id: page.id,
+        title: existingTitle,
+        db: dbName,
+        start: existingStart,
+        end: existingEnd,
+        matchType: titleMatch ? "exact" : "similar",
+      });
+    }
+  }
+
+  return results;
+}
