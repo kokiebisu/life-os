@@ -83,40 +83,75 @@ function getTimeFromISO(iso: string | undefined): string | null {
   return m ? m[1] : null;
 }
 
+/** ページのタイトルを取得 */
+function getPageTitle(page: any, titleProp: string): string {
+  return (page.properties?.[titleProp]?.title || [])
+    .map((t: any) => t.plain_text || "").join("");
+}
+
+/** タイトルの一致/類似を判定し、重複であれば true を返す */
+async function isTitleDuplicate(newTitle: string, normalizedNew: string, existingTitle: string, label: string): Promise<boolean> {
+  const normalizedExisting = normalizeTitle(existingTitle);
+  const titleMatch = normalizedNew === normalizedExisting;
+  const titleSimilar = !titleMatch && (normalizedNew.includes(normalizedExisting) || normalizedExisting.includes(normalizedNew));
+
+  if (!titleMatch && !titleSimilar) return false;
+
+  if (titleMatch) {
+    console.error(`重複検出${label}: "${existingTitle}" が既に存在します。スキップします。`);
+    return true;
+  }
+  if (titleSimilar) {
+    const isDup = await aiIsDuplicate(newTitle, existingTitle);
+    if (isDup) {
+      console.error(`重複検出（AI判定）${label}: "${existingTitle}" と同一の予定です。スキップします。`);
+      return true;
+    }
+  }
+  return false;
+}
+
 async function checkDuplicate(apiKey: string, dbId: string, config: any, date: string, title: string, newStart?: string, newEnd?: string): Promise<boolean> {
   const data = await queryDbByDateCached(apiKey, dbId, config, date, date);
   const pages: any[] = data.results || [];
   const normalizedNew = normalizeTitle(title);
+
+  // 1. 同じ日のエントリとの重複チェック
   for (const page of pages) {
-    const existingTitle = (page.properties?.[config.titleProp]?.title || [])
-      .map((t: any) => t.plain_text || "").join("");
-    const normalizedExisting = normalizeTitle(existingTitle);
+    const existingTitle = getPageTitle(page, config.titleProp);
     const existingDate = page.properties?.[config.dateProp]?.date;
     const existingStart = getTimeFromISO(existingDate?.start);
     const existingEnd = getTimeFromISO(existingDate?.end);
-
-    const titleMatch = normalizedNew === normalizedExisting;
-    const titleSimilar = !titleMatch && (normalizedNew.includes(normalizedExisting) || normalizedExisting.includes(normalizedNew));
-
-    if (!titleMatch && !titleSimilar) continue;
 
     // タイトルが一致/類似でも、時間帯が異なれば別エントリとして許可
     if (newStart && existingStart && newStart !== existingStart) continue;
     if (newEnd && existingEnd && newEnd !== existingEnd) continue;
 
-    if (titleMatch) {
-      console.error(`重複検出: "${existingTitle}" が既に存在します。スキップします。`);
-      return true;
-    }
-    // 部分的に似ている場合 → AI で判定
-    if (titleSimilar) {
-      const isDup = await aiIsDuplicate(title, existingTitle);
-      if (isDup) {
-        console.error(`重複検出（AI判定）: "${existingTitle}" と同一の予定です。スキップします。`);
-        return true;
-      }
-    }
+    if (await isTitleDuplicate(title, normalizedNew, existingTitle, "")) return true;
   }
+
+  // 2. 日付範囲イベントとの重複チェック（過去7日間のエントリで end が対象日以降のもの）
+  const lookbackDate = new Date(date + "T00:00:00+09:00");
+  lookbackDate.setDate(lookbackDate.getDate() - 7);
+  const lookbackStr = lookbackDate.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+  const yesterday = new Date(date + "T00:00:00+09:00");
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
+
+  const rangeData = await queryDbByDateCached(apiKey, dbId, config, lookbackStr, yesterdayStr);
+  const rangePages: any[] = rangeData.results || [];
+
+  for (const page of rangePages) {
+    const existingDate = page.properties?.[config.dateProp]?.date;
+    if (!existingDate?.end) continue; // 日付範囲でないエントリはスキップ
+    // end が対象日以降かチェック（日付範囲が対象日をカバーしている）
+    const endDateStr = existingDate.end.split("T")[0];
+    if (endDateStr < date) continue;
+
+    const existingTitle = getPageTitle(page, config.titleProp);
+    if (await isTitleDuplicate(title, normalizedNew, existingTitle, "（日付範囲）")) return true;
+  }
+
   return false;
 }
 
