@@ -296,16 +296,11 @@ async function updateNotionPage(
   const existingBlocks = page.results || [];
 
   for (const block of existingBlocks) {
-    await notionFetch(apiKey, `/blocks/${block.id}`, {
-      method: "DELETE",
-    });
+    await notionFetch(apiKey, `/blocks/${block.id}`, undefined, "DELETE");
   }
 
   // Append new blocks
-  await notionFetch(apiKey, `/blocks/${pageId}/children`, {
-    method: "PATCH",
-    body: JSON.stringify({ children: blocks }),
-  });
+  await notionFetch(apiKey, `/blocks/${pageId}/children`, { children: blocks }, "PATCH");
 }
 
 // --- Main ---
