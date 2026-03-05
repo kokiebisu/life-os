@@ -46,7 +46,7 @@
 ### 動作
 
 1. タスクを検出したら `planning/tasks.md` の `## Inbox` セクション末尾に追加
-2. **Notion todo DB にも登録する**（`notion-add.ts --db todo --allday`）。説明が必要なら作成後に `notion-update-page` の `replace_content` でページ本文に書く
+2. **Notion todo DB にも登録する**（`notion-add.ts --db todo --start HH:MM --end HH:MM`）。時間はユーザーに確認するか、文脈から適切に設定する。説明が必要なら作成後に `notion-update-page` の `replace_content` でページ本文に書く
 3. ユーザーに「タスクに追加しておいた」と軽く報告（1行で十分）
 4. 会話の流れを止めない。メインの話題を優先する
 
