@@ -9,3 +9,9 @@ Father, please guide my heart and allow your words to be louder than my emotions
 ---
 
 *箴言19:14 — 「家と財産は先祖からの遺産、しかし思慮深い妻は主からのものである。」*
+
+---
+
+# Daily Prayer
+
+God, I am your child and a soldier in your army. Help me to be aware of the lies of the enemy today.
