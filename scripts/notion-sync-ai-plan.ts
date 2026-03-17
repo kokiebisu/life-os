@@ -41,7 +41,7 @@ interface PlanEntry {
 }
 
 function loadRoutineLabels(): string[] {
-  const configPath = join(ROOT, "aspects", "routine", "schedule.json");
+  const configPath = join(ROOT, "aspects", "devotion", "schedule.json");
   if (!existsSync(configPath)) return [];
   const config = JSON.parse(readFileSync(configPath, "utf-8"));
   return (config.routines || []).map((r: ScheduleJsonRoutine) => r.label.toLowerCase());
@@ -93,9 +93,9 @@ function parseDailyPlan(filePath: string): PlanEntry[] {
 // --- Phase 1: Clean Slate ---
 
 async function cleanExistingRoutines(date: string, dryRun: boolean): Promise<number> {
-  const { apiKey, dbId, config } = getScheduleDbConfig("routine");
+  const { apiKey, dbId, config } = getScheduleDbConfig("devotion");
   const data = await queryDbByDate(apiKey, dbId, config, date, date);
-  const existing = normalizePages(data.results, config, "routine");
+  const existing = normalizePages(data.results, config, "devotion");
 
   let deleted = 0;
   for (const entry of existing) {
@@ -151,7 +151,7 @@ async function getGymSessionCount(date: string): Promise<number> {
   monday.setDate(d.getDate() + mondayOffset);
   const weekStart = monday.toISOString().slice(0, 10);
 
-  const { apiKey, dbId } = getScheduleDbConfig("routine");
+  const { apiKey, dbId } = getScheduleDbConfig("devotion");
   const resp = await notionFetch(apiKey, "/databases/" + dbId + "/query", {
     filter: {
       and: [
@@ -327,7 +327,7 @@ async function main() {
 
   // Phase 2: Create entries from AI plan
   console.log(`Phase 2: Creating entries from AI plan...`);
-  const { apiKey, dbId, config } = getScheduleDbConfig("routine");
+  const { apiKey, dbId, config } = getScheduleDbConfig("devotion");
   let created = 0;
   let guitarCount = 0;
 

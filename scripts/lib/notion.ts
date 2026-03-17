@@ -70,7 +70,7 @@ export function getDbIdOptional(envKey: string): string | null {
 
 // --- Schedule DB Config (calendar-based DBs) ---
 
-export type ScheduleDbName = "routine" | "events" | "guitar" | "sound" | "meals" | "groceries" | "todo";
+export type ScheduleDbName = "devotion" | "events" | "guitar" | "sound" | "meals" | "groceries" | "todo";
 
 export interface ScheduleDbConfig {
   envKey: string;
@@ -83,7 +83,7 @@ export interface ScheduleDbConfig {
 }
 
 export const SCHEDULE_DB_CONFIGS: Record<ScheduleDbName, ScheduleDbConfig> = {
-  routine: { envKey: "NOTION_TASKS_DB", titleProp: "Name", dateProp: "日付", descProp: "", statusProp: "ステータス", statusDone: "Complete" },
+  devotion: { envKey: "NOTION_DEVOTION_DB", titleProp: "Name", dateProp: "日付", descProp: "", statusProp: "ステータス", statusDone: "Complete" },
   events:  { envKey: "NOTION_EVENTS_DB", titleProp: "名前", dateProp: "日付", descProp: "", statusProp: "ステータス", statusDone: "完了" },
   guitar:  { envKey: "NOTION_CURRICULUM_DB", titleProp: "名前", dateProp: "日付", descProp: "", statusProp: "ステータス", statusDone: "完了", extraFilter: { property: "カリキュラム", select: { equals: "ギター" } } },
   sound:   { envKey: "NOTION_CURRICULUM_DB", titleProp: "名前", dateProp: "日付", descProp: "", statusProp: "ステータス", statusDone: "完了", extraFilter: { property: "カリキュラム", select: { equals: "音響" } } },
@@ -162,8 +162,8 @@ export function getInvestmentDbConfig(name: InvestmentDbName): { apiKey: string;
   return { apiKey: getApiKey(), dbId: getDbId(config.envKey), config };
 }
 
-export function getTasksConfig() {
-  return { apiKey: getApiKey(), dbId: getDbId("NOTION_TASKS_DB") };
+export function getDevotionConfig() {
+  return { apiKey: getApiKey(), dbId: getDbId("NOTION_DEVOTION_DB") };
 }
 
 export function getMealsConfig() {
@@ -184,6 +184,14 @@ export function getSoundConfig() {
 
 export function getTodoConfig() {
   return getScheduleDbConfig("todo");
+}
+
+// --- Gym DB Config ---
+// ジムDB（種目・重量・セット数・回数）。ステータスなし。Notion MCP 経由で操作する。
+export const GYM_DATA_SOURCE_ID = "326ce17f-7b98-806a-be76-000b67b58628";
+
+export function getGymDbId() {
+  return getDbId("NOTION_GYM_DB");
 }
 
 // --- Unified DB query & normalization ---

@@ -10,13 +10,13 @@
     { "label": "Devotion", "minutes": 30, "priority": 0, "splittable": false, "preferred": "end" }
   ],
   "conflictRules": {
-    "dbPriority": ["events", "todo", "guitar", "sound", "routine", "meals", "groceries"],
+    "dbPriority": ["events", "todo", "guitar", "sound", "devotion", "meals", "groceries"],
     "defaults": {
       "events": "keep",
       "todo": "keep",
       "guitar": "shift",
       "sound": "shift",
-      "routine": "shift",
+      "devotion": "shift",
       "meals": "delete",
       "groceries": "delete"
     },

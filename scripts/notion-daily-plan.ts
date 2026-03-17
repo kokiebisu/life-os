@@ -89,7 +89,7 @@ interface TimeSlot {
   start: string; // "09:00"
   end: string; // "12:00"
   label: string;
-  source: "routine" | "event" | "notion";
+  source: "devotion" | "event" | "notion";
   aspect?: string;
   dbSource?: ScheduleDbName;
   notionId?: string;
@@ -222,7 +222,7 @@ function daysBetween(startStr: string, endStr: string): number {
 // --- Schedule Config ---
 
 function loadScheduleConfig(): ScheduleConfig {
-  const configPath = join(ROOT, "aspects", "routine", "schedule.json");
+  const configPath = join(ROOT, "aspects", "devotion", "schedule.json");
   if (existsSync(configPath)) {
     const raw = readFileSync(configPath, "utf-8");
     const config = JSON.parse(raw);
@@ -257,7 +257,7 @@ function loadScheduleConfig(): ScheduleConfig {
 
 async function fetchAllDbEntries(date: string): Promise<NormalizedEntry[]> {
   const dbNames: ScheduleDbName[] = [
-    "routine",
+    "devotion",
     "events",
     "guitar",
     "sound",
@@ -368,12 +368,12 @@ async function fetchWeekRoutineHistory(
 ): Promise<WeekRoutineHistory[]> {
   if (weekStart > yesterday) return []; // Monday: no prior data
 
-  const dbConf = getScheduleDbConfigOptional("routine");
+  const dbConf = getScheduleDbConfigOptional("devotion");
   if (!dbConf) return [];
 
   const { apiKey, dbId, config } = dbConf;
   const data = await queryDbByDateCached(apiKey, dbId, config, weekStart, yesterday);
-  const entries = normalizePages(data.results, config, "routine");
+  const entries = normalizePages(data.results, config, "devotion");
 
   // Count completed minutes per label
   const minutesByLabel = new Map<string, number>();
@@ -488,7 +488,7 @@ const ASPECT_TO_DB: Record<string, ScheduleDbName> = {
   diet: "meals",
   guitar: "guitar",
   sound: "sound",
-  routine: "routine",
+  routine: "devotion",
 };
 
 function buildConfirmedSchedule(
@@ -847,7 +847,7 @@ function fillRoutinesByPriority(
             start: minutesToTime(seg.end - allocate),
             end: minutesToTime(seg.end),
             label: routine.label,
-            source: "routine",
+            source: "devotion",
           });
           seg.end -= allocate;
         } else {
@@ -855,7 +855,7 @@ function fillRoutinesByPriority(
             start: minutesToTime(effectiveStart),
             end: minutesToTime(effectiveStart + allocate),
             label: routine.label,
-            source: "routine",
+            source: "devotion",
           });
           seg.start = effectiveStart + allocate;
         }
@@ -874,7 +874,7 @@ function fillRoutinesByPriority(
               start: minutesToTime(seg.end - routine.minutes),
               end: minutesToTime(seg.end),
               label: routine.label,
-              source: "routine",
+              source: "devotion",
             });
             seg.end -= routine.minutes;
           } else {
@@ -882,7 +882,7 @@ function fillRoutinesByPriority(
               start: minutesToTime(effectiveStart),
               end: minutesToTime(effectiveStart + routine.minutes),
               label: routine.label,
-              source: "routine",
+              source: "devotion",
             });
             seg.start = effectiveStart + routine.minutes;
           }
@@ -984,7 +984,7 @@ function formatMarkdown(data: DailyPlanData): string {
 
   if (timeline.length > 0) {
     for (const slot of timeline) {
-      const icon = slot.source === "routine" ? "🔹" : "🔶";
+      const icon = slot.source === "devotion" ? "🔹" : "🔶";
       const registered = slot.notionRegistered ? "（※登録済み）" : "";
       const actualInfo = slot.actualStart ? `（開始 ${slot.actualStart}）` : "";
       lines.push(

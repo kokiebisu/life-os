@@ -53,7 +53,7 @@ async function updatePage(pageId: string, icon: unknown, cover: unknown) {
 }
 
 async function backfillTasks(dryRun: boolean, force: boolean) {
-  const dbId = getDbId("NOTION_TASKS_DB");
+  const dbId = getDbId("NOTION_DEVOTION_DB");
   const pages = await queryAll(dbId);
   console.log(`\n📌 Tasks (習慣): ${pages.length} pages`);
 

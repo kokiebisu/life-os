@@ -20,7 +20,7 @@ events > todo > guitar = sound > routine > meals > groceries
 
 ## 基本ルール
 - 1ブロック=1タスク（「A + B」「A or B」禁止）
-- ルーティンを events/ に書かない（routine DB 側で管理）
+- ルーティンを events/ に書かない（devotion DB 側で管理）
 - events/ = 未来の一回限り予定（行事・集まり）、daily/ = その日の実績記録
 - events/ にタスク（手続き・作業）が混在していても、Notion 登録先は内容で判断する（→ todo DB）
 - 曜日は `date` コマンドで確認。暗算しない

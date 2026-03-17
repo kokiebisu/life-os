@@ -70,12 +70,12 @@ bun run scripts/notion-pull.ts --no-enrich
 | guitar    | `aspects/guitar/events/YYYY-MM-DD.md`  |
 | sound     | `aspects/sound/events/YYYY-MM-DD.md`   |
 | meals     | `aspects/diet/events/YYYY-MM-DD.md`    |
-| routine   | `aspects/routine/events/YYYY-MM-DD.md` |
+| routine   | `aspects/devotion/events/YYYY-MM-DD.md` |
 | groceries | `aspects/diet/groceries/YYYY-MM-DD.md` |
 | todo      | `planning/tasks.md`（Inbox / Archive） |
 
 - 完了ステータスの判定: `"Done"` or `"完了"` → `[x]` にマーク
-- routine DB のステータスプロパティは `ステータス`（日本語）。`Status`（英語）ではない
+- devotion DB のステータスプロパティは `ステータス`（日本語）。`Status`（英語）ではない
 
 ## 一括削除直後に `notion-pull.ts` を実行しない（厳守）
 

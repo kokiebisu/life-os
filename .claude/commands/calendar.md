@@ -152,7 +152,7 @@ TZ=Asia/Tokyo date -d "2026-02-22" "+%Y-%m-%d (%a)"
 
 ```bash
 bun -e '
-const dbId = process.env.NOTION_TASKS_DB; // or MEALS_DB etc.
+const dbId = process.env.NOTION_DEVOTION_DB; // or MEALS_DB etc.
 const apiKey = process.env.NOTION_API_KEY;
 const res = await fetch("https://api.notion.com/v1/databases/" + dbId + "/query", {
   method: "POST",

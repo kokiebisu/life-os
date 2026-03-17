@@ -18,7 +18,7 @@ interface TimeSlot {
   start: string;
   end: string;
   label: string;
-  source: "routine" | "event" | "notion";
+  source: "devotion" | "event" | "notion";
   notionRegistered?: boolean;
 }
 
@@ -87,7 +87,7 @@ async function main() {
 
   // 3. Find routine slots not yet registered (skip fragments < 30 min)
   const routineSlots = planData.schedule.timeline.filter(
-    (s) => s.source === "routine" && !s.notionRegistered &&
+    (s) => s.source === "devotion" && !s.notionRegistered &&
       timeToMinutes(s.end) - timeToMinutes(s.start) >= 30,
   );
 
@@ -123,7 +123,7 @@ async function main() {
     monday.setDate(d.getDate() + mondayOffset);
     const weekStart = monday.toISOString().slice(0, 10);
 
-    const { apiKey, dbId } = getScheduleDbConfig("routine");
+    const { apiKey, dbId } = getScheduleDbConfig("devotion");
     const resp = await notionFetch(apiKey, "/databases/" + dbId + "/query", {
       filter: {
         and: [
@@ -302,7 +302,7 @@ async function main() {
       }, "PATCH");
     } else {
       // Default: create new page in routine DB
-      const { apiKey, dbId, config } = getScheduleDbConfig("routine");
+      const { apiKey, dbId, config } = getScheduleDbConfig("devotion");
       const isGym = slot.label === GYM_LABEL;
 
       // Determine gym menu type (A/B rotation)

@@ -105,7 +105,7 @@ async function main() {
     process.exit(1);
   }
 
-  const dbName = (opts.db || "routine") as ScheduleDbName;
+  const dbName = (opts.db || "devotion") as ScheduleDbName;
   const { apiKey, dbId, config } = getScheduleDbConfig(dbName);
 
   const properties: Record<string, unknown> = {
