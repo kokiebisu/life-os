@@ -13,6 +13,15 @@
    bun run scripts/notion-cleanup.ts --date $ARGUMENTS
    ```
 
+1.5. **日付なし・未完了のエントリを確認する**（厳守）
+   ```bash
+   bun run scripts/notion-cleanup.ts --no-date
+   ```
+   - guitar/sound のレッスン・routine エントリは日付なしが正常なのでスキップ
+   - **todo/events で日付なしのエントリがあれば1件ずつ対話的に処理する**
+   - 「ブロック中」は基本そのまま残す（ユーザーに確認してから削除）
+   - この手順をスキップしない
+
 2. **routine エントリを自動削除する**
    - source が `routine` のエントリを全て抽出
    - `notion-delete.ts` で一括削除

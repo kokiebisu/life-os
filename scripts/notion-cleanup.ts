@@ -3,8 +3,9 @@
  * 過去の未完了エントリ取得
  *
  * 使い方:
- *   bun run scripts/notion-cleanup.ts          # 全期間の過去未完了（JSON）
+ *   bun run scripts/notion-cleanup.ts           # 全期間の過去未完了（JSON）
  *   bun run scripts/notion-cleanup.ts --date 2026-03-01  # 指定日のみ
+ *   bun run scripts/notion-cleanup.ts --no-date # 日付なし・未完了のエントリのみ
  */
 
 import {
@@ -19,8 +20,9 @@ import {
 } from "./lib/notion";
 
 async function main() {
-  const { opts } = parseArgs();
+  const { opts, flags } = parseArgs();
   const targetDate = opts.date || null;
+  const noDate = flags.has("no-date");
   const today = todayJST();
 
   clearNotionCache();
@@ -33,32 +35,35 @@ async function main() {
     if (!dbSetup) return;
     const { apiKey, dbId, config } = dbSetup;
 
-    // Exclude all "done" statuses (some DBs use "Done", others "完了")
-    const doneStatuses = new Set([config.statusDone, "Done", "完了"]);
+    // Exclude done statuses (config.statusDone + "完了" as fallback for DBs with Japanese status)
+    const doneStatuses = new Set([config.statusDone, "完了"]);
     const statusFilters = [...doneStatuses].map((s) => ({
       property: config.statusProp,
       status: { does_not_equal: s },
     }));
 
-    const filters: Record<string, unknown>[] = [
-      ...statusFilters,
-      { property: config.dateProp, date: { is_not_empty: true } },
-    ];
+    const filters: Record<string, unknown>[] = [...statusFilters];
 
-    if (targetDate) {
-      // Filter to specific date
-      filters.push({ property: config.dateProp, date: { on_or_after: targetDate + "T00:00:00+09:00" } });
-      filters.push({ property: config.dateProp, date: { on_or_before: targetDate + "T23:59:59+09:00" } });
+    if (noDate) {
+      // Date-less incomplete entries only
+      filters.push({ property: config.dateProp, date: { is_empty: true } });
     } else {
-      // All past incomplete: date before today
-      filters.push({ property: config.dateProp, date: { before: today + "T00:00:00+09:00" } });
+      filters.push({ property: config.dateProp, date: { is_not_empty: true } });
+      if (targetDate) {
+        // Filter to specific date
+        filters.push({ property: config.dateProp, date: { on_or_after: targetDate + "T00:00:00+09:00" } });
+        filters.push({ property: config.dateProp, date: { on_or_before: targetDate + "T23:59:59+09:00" } });
+      } else {
+        // All past incomplete: date before today
+        filters.push({ property: config.dateProp, date: { before: today + "T00:00:00+09:00" } });
+      }
     }
 
     if (config.extraFilter) filters.push(config.extraFilter);
 
     const data = await notionFetch(apiKey, `/databases/${dbId}/query`, {
       filter: { and: filters },
-      sorts: [{ property: config.dateProp, direction: "ascending" }],
+      sorts: noDate ? [] : [{ property: config.dateProp, direction: "ascending" }],
     });
 
     allEntries.push(...normalizePages(data.results, config, dbName));
