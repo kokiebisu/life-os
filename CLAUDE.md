@@ -7,7 +7,7 @@
 
 **リポジトリ:** life（人生管理）
 **言語:** 日本語（コード・ファイル名は英語）
-**構造:** planning/ に全体管理、aspects/ 配下に生活の各側面を管理
+**構造:** aspects/ 配下に生活の各側面を管理
 
 ## Commands
 
@@ -39,8 +39,10 @@
 
 ```
 profile/                 # ユーザープロフィール（basic/health/career/goals/love/personality）
-planning/                # 全体管理（events/, daily/, goals.md, roadmap.md, tasks.md）
 aspects/                 # 生活の各側面（各ディレクトリに CLAUDE.md あり）
+  tasks.md               # タスク管理（Inbox / Archive）
+  events/                # 一回限りの予定
+  daily/                 # デイリーログ
 projects/sumitsugi/      # 個人プロジェクト（サブモジュール）
 memory-bank/             # セッション間の記憶（decisions.md）
 ```
@@ -68,7 +70,9 @@ memory-bank/             # セッション間の記憶（decisions.md）
 | church | - | 教会関連 |
 
 **その他:**
-- `planning/` — 全aspect横断管理（events/, daily/, goals.md, roadmap.md, tasks.md）
+- `aspects/tasks.md` — タスク管理（Inbox / Archive）
+- `aspects/events/` — 一回限りの予定
+- `aspects/daily/` — デイリーログ
 - `projects/sumitsugi/` — 個人プロジェクト・本業（サブモジュール）
 
 ## Devcontainer
