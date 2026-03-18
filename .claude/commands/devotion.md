@@ -79,7 +79,15 @@ $ARGUMENTS — 章番号 or 日付（省略可。省略時は自動検出）
    - エントリが見つかったら:
      - `notion-update-page` の `replace_content` でページ本文にローカル md と同じ内容を書き出す（省略・要約しない）
      - ステータスを「完了」に変更する
-   - エントリがなければユーザーに報告する（routine DB のエントリは通常スケジュール同期で作成済み）
+   - エントリがなければ手動で登録する（**厳守**）:
+     - **開始・終了時間はユーザーに確認する（厳守）**。「今日は何時頃から始めて、何時頃終わった？」と聞く。プレースホルダー（06:00等）で登録しない
+     ```bash
+     bun run scripts/notion-add.ts --db devotion --title "デボーション" --date YYYY-MM-DD --start HH:MM --end HH:MM
+     ```
+     その後 `notion-update-page` で以下を設定する:
+     - Book（書籍名）と Chapter（数値）。Book の選択肢にない書籍は `notion-update-data-source` で追加してから設定する
+     - icon: 🙏
+     ※ Name は必ず「**Devotion**」（英語）
 
 4. **完了報告**
    - 今日の章のタイトルと主な持ち帰りを1-2行で報告する
