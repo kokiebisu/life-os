@@ -166,7 +166,7 @@ chapter: Chapter 4 - Trees and Graphs
 
 ## `/study` コマンド
 
-**スキルファイル:** `.claude/skills/study.md`
+**スキルファイル:** `.claude/skills/study/SKILL.md`
 
 ### 引数
 
