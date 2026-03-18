@@ -4,7 +4,7 @@ date: 2026-03-18
 start: 14:40
 end: 16:51
 category: system-design
-book: System Design Interview（Alex Xu）
+book: システム設計の面接試験
 chapter: "4"
 ---
 
