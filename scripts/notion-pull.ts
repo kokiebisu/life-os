@@ -1019,27 +1019,6 @@ async function main() {
   if (totalRemoved > 0) parts.push(`Removed: ${totalRemoved}`);
   console.log(`\nDone! ${parts.join(", ")}`);
 
-  // --- Regenerate daily plan from current Notion state ---
-  if (!dryRun) {
-    console.log(`\nRegenerating daily plan for ${baseDate}...`);
-    const planProc = Bun.spawn(
-      ["bun", "run", "scripts/notion-daily-plan.ts", "--date", baseDate],
-      { stdout: "pipe", stderr: "pipe", cwd: ROOT },
-    );
-    const planOutput = await new Response(planProc.stdout).text();
-    const planErr = await new Response(planProc.stderr).text();
-    await planProc.exited;
-    if (planProc.exitCode === 0 && planOutput.trim()) {
-      const dailyPath = join(ROOT, "planning", "daily", `${baseDate}.md`);
-      const dir = dirname(dailyPath);
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-      writeFileSync(dailyPath, planOutput);
-      console.log(`Updated planning/daily/${baseDate}.md`);
-    } else if (planErr) {
-      console.error(`Daily plan generation failed: ${planErr}`);
-    }
-  }
-
   // --- Push local event changes back to Notion ---
   if (!dryRun) {
     console.log(`\nSyncing local events → Notion...`);
