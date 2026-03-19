@@ -8,6 +8,12 @@ $ARGUMENTS — 章番号 or 日付（省略可。省略時は自動検出）
 
 ## Step 1: 準備
 
+0. **セッション開始時刻を記録する（厳守・最初に実行）**
+   ```bash
+   TZ=Asia/Tokyo date +"%H:%M"
+   ```
+   この時刻を変数として覚えておく。後でNotionに登録するときの `--start` に使う。ユーザーには聞かない。
+
 1. **前回の章を確認する**
    ```bash
    ls aspects/church/devotions/2*.md | sort | tail -1
@@ -80,16 +86,23 @@ $ARGUMENTS — 章番号 or 日付（省略可。省略時は自動検出）
      - `notion-update-page` の `replace_content` でページ本文にローカル md と同じ内容を書き出す（省略・要約しない）
      - ステータスを「完了」に変更する
    - エントリがなければ手動で登録する（**厳守**）:
-     - **開始・終了時間はユーザーに確認する（厳守）**。「今日は何時頃から始めて、何時頃終わった？」と聞く。プレースホルダー（06:00等）で登録しない
+     - **開始時刻**: Step 1-0 で記録した時刻を使う
+     - **終了時刻**: `TZ=Asia/Tokyo date +"%H:%M"` で現在時刻を取得して使う
+     - **ユーザーに時刻を聞かない（厳守）**
      ```bash
      bun run scripts/notion-add.ts --db devotion --title "デボーション" --date YYYY-MM-DD --start HH:MM --end HH:MM
      ```
      その後 `notion-update-page` で以下を設定する:
      - Book（書籍名）と Chapter（数値）。Book の選択肢にない書籍は `notion-update-data-source` で追加してから設定する
      - icon: 🙏
-     ※ Name は必ず「**Devotion**」（英語）
+     ※ Name は必ず「**デボーション**」（日本語）
 
-4. **完了報告**
+4. **Prayer Request を祈る（厳守）**
+   - `aspects/church/prayer-requests.md` を読む
+   - Active リストの全員の名前と祈りの内容をユーザーに表示する
+   - 「一緒に祈ろう」と声をかけ、全員を含む祈りの文を提示する
+
+5. **完了報告**
    - 今日の章のタイトルと主な持ち帰りを1-2行で報告する
 
 ## 注意
