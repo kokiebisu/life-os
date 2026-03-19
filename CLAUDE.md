@@ -63,7 +63,6 @@ memory-bank/             # セッション間の記憶（decisions.md）
 | investment | 11人チーム | 投資 |
 | study | 9人チーム | 学習（起業・法律・技術） |
 | job/search | 6人チーム | 就職活動 |
-| fukuoka | 田中誠 | 福岡移住検討 |
 | reading | 村上葉月 | 読書記録 |
 | routine | - | 習慣・ルーティン → Notion: 習慣DB |
 | sound | 3人チーム | 教会音響PA → Notion: カリキュラムDB |
