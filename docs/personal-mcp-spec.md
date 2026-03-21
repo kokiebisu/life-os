@@ -363,8 +363,8 @@ context_get:
           nationality: string     # "日本"
           languages: string[]     # ["日本語", "英語"]
           mbti: string            # "INFJ"
-          current_work: string    # "sumitsugi（個人プロダクト）開発"
-          priorities: string[]    # ["sumitsugi開発", "運動/減量", ...]
+          current_work: string    # "life OS（個人プロジェクト）開発"
+          priorities: string[]    # ["life OS開発", "運動/減量", ...]
           diet_restrictions: string[]  # ["トマト", "マヨネーズ", ...]
           weight_kg: number       # 63.0（health.md から）
           weight_target_kg: number # 58.0（health.md から）
@@ -956,8 +956,8 @@ MCP server `personal` の `profile_get` / `context_get` を使うこと。
     "nationality": "日本",
     "languages": ["日本語", "英語"],
     "mbti": "INFJ",
-    "current_work": "sumitsugi（個人プロダクト）開発",
-    "priorities": ["sumitsugi開発", "運動/減量", "ギター", "投資", "study", "読書", "福岡検討"],
+    "current_work": "life OS（個人プロジェクト）開発",
+    "priorities": ["life OS開発", "運動/減量", "ギター", "投資", "study", "読書", "福岡検討"],
     "diet_restrictions": ["トマト", "マヨネーズ", "ケチャップ", "マスタード"],
     "weight_kg": 63.0,
     "weight_target_kg": 58.0,
@@ -970,7 +970,7 @@ MCP server `personal` の `profile_get` / `context_get` を使うこと。
     { "time": "05:30-06:30", "title": "Devotion", "db": "routine" },
     { "time": "06:30-07:00", "title": "朝シャワー", "db": "routine" },
     { "time": "07:00-08:00", "title": "朝食: 鮭の塩焼き定食", "db": "meals" },
-    { "time": "08:00-12:00", "title": "sumitsugi 開発", "db": "routine" }
+    { "time": "08:00-12:00", "title": "life OS 開発", "db": "routine" }
   ],
   "active_goals": [
     {
