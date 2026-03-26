@@ -2,7 +2,8 @@
   "name": "life",
   "module": "index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "setup": "bun run scripts/setup.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"
