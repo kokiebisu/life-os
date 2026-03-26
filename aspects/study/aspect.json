@@ -1,0 +1,20 @@
+{
+  "name": "study",
+  "description": "学習セッション・ノート管理",
+  "notion": {
+    "databases": [
+      {
+        "envKey": "NOTION_STUDY_DB",
+        "displayName": "学習",
+        "schema": {
+          "名前": "title",
+          "日付": "date"
+        }
+      }
+    ]
+  },
+  "commands": ["study"],
+  "postSetupNotes": [
+    "Notion の「学習」DB に「カテゴリ (select)」「本 (text)」「Chapter (number)」プロパティを手動で追加してください"
+  ]
+}

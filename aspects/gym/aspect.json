@@ -1,0 +1,20 @@
+{
+  "name": "gym",
+  "description": "ジムログ・ワークアウト管理",
+  "notion": {
+    "databases": [
+      {
+        "envKey": "NOTION_GYM_DB",
+        "displayName": "ジム",
+        "schema": {
+          "名前": "title",
+          "日付": "date"
+        }
+      }
+    ]
+  },
+  "commands": ["gym"],
+  "postSetupNotes": [
+    "Notion の「ジム」DB に「種目 (select)」「重量 (number)」「セット数 (number)」「回数 (number)」「フィードバック (text)」プロパティを手動で追加してください"
+  ]
+}

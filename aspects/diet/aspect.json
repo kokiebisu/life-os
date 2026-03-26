@@ -1,0 +1,36 @@
+{
+  "name": "diet",
+  "description": "食事・冷蔵庫・買い出し管理",
+  "notion": {
+    "databases": [
+      {
+        "envKey": "NOTION_MEALS_DB",
+        "displayName": "食事",
+        "schema": {
+          "名前": "title",
+          "日付": "date"
+        }
+      },
+      {
+        "envKey": "NOTION_GROCERIES_DB",
+        "displayName": "買い出し",
+        "schema": {
+          "件名": "title",
+          "日付": "date"
+        }
+      },
+      {
+        "envKey": "NOTION_OTHER_DB",
+        "displayName": "その他（活動記録）",
+        "schema": {
+          "名前": "title",
+          "日付": "date"
+        }
+      }
+    ]
+  },
+  "commands": ["meal", "kondate", "fridge-sync"],
+  "postSetupNotes": [
+    "Notion の「食事」DB に「カロリー (number)」「フィードバック (select)」プロパティを手動で追加してください"
+  ]
+}
