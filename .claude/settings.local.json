@@ -7,10 +7,33 @@
       "Skill(pr)",
       "mcp__claude_ai_Notion__notion-create-pages",
       "mcp__claude_ai_Notion__notion-update-data-source",
-      "mcp__claude_ai_Notion__notion-create-database"
+      "mcp__claude_ai_Notion__notion-create-database",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"SessionStart\", \"additionalContext\": \"セッション開始時の自動指示: /from:notion スキルを今すぐ実行して、ローカルと Notion を同期してください。\"}}'",
+            "statusMessage": "Notion 同期を準備中..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git -C \"$CLAUDE_PROJECT_DIR\" status --porcelain | grep -q . && echo '{\"systemMessage\": \"⚠️ 未コミットの変更があります。コミット忘れに注意してください。\"}' || true"
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
