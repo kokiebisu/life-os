@@ -207,9 +207,6 @@ export interface NormalizedEntry {
   status: string;
   description: string;
   feedback: string;
-  actualStart: string | null;
-  actualEnd: string | null;
-  location: string | null;
   hasIcon: boolean;
   hasCover: boolean;
 }
@@ -295,9 +292,6 @@ export function normalizePages(pages: any[], config: ScheduleDbConfig, source: S
     const dateObj = props[config.dateProp]?.date;
     const descArr = props[config.descProp]?.rich_text || [];
     const feedbackArr = props.フィードバック?.rich_text || [];
-    const actualStartArr = props["開始時間"]?.rich_text || [];
-    const actualEndArr = props["終了時間"]?.rich_text || [];
-    const locationArr = props["場所"]?.rich_text || [];
     return {
       id: page.id,
       source,
@@ -307,9 +301,6 @@ export function normalizePages(pages: any[], config: ScheduleDbConfig, source: S
       status: (config.statusProp ? props[config.statusProp]?.status?.name : undefined) || "",
       description: descArr.map((t: any) => t.plain_text || "").join(""),
       feedback: feedbackArr.map((t: any) => t.plain_text || "").join(""),
-      actualStart: actualStartArr.map((t: any) => t.plain_text || "").join("") || null,
-      actualEnd: actualEndArr.map((t: any) => t.plain_text || "").join("") || null,
-      location: locationArr.map((t: any) => t.plain_text || "").join("") || null,
       hasIcon: !!page.icon,
       hasCover: !!page.cover,
     };

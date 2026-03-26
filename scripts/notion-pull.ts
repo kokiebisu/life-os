@@ -26,10 +26,9 @@ import {
   type ScheduleDbName, type NormalizedEntry,
   SCHEDULE_DB_CONFIGS, getScheduleDbConfigOptional, queryDbByDate, queryDbByDateCached, normalizePages,
   normalizeTitle, notionFetch, getApiKey, clearNotionCache,
-  parseArgs, todayJST, loadEnv, getHomeAddress,
+  parseArgs, todayJST, loadEnv,
   pickTaskIcon, pickCover,
 } from "./lib/notion";
-import { estimateTravelTime } from "./lib/travel";
 
 const ROOT = join(import.meta.dir, "..");
 
@@ -96,8 +95,6 @@ function parseEventFile(filePath: string): FileEntry[] {
       const sub = lines[j].replace(/^\s{2,}-\s/, "").trim();
       if (sub.startsWith("💬")) {
         feedbackLine = sub.replace(/^💬\s*/, "");
-      } else if (sub.startsWith("🕐")) {
-        // Skip travel time annotation (regenerated from actualStart/actualEnd)
       } else {
         descLines.push(sub);
       }
@@ -151,9 +148,6 @@ interface MergedEntry {
   descLines: string[];
   feedbackLine: string;
   source: "both" | "notion" | "file";
-  actualStart: string;
-  actualEnd: string;
-  location: string;
   notionId: string;
   hasIcon: boolean;
   hasCover: boolean;
@@ -206,9 +200,6 @@ function mergeEntries(notionEntries: NormalizedEntry[], fileEntries: FileEntry[]
         descLines: fe.descLines,
         feedbackLine: ne.feedback || fe.feedbackLine,
         source: "both",
-        actualStart: ne.actualStart || "",
-        actualEnd: ne.actualEnd || "",
-        location: ne.location || "",
         notionId: ne.id,
         hasIcon: ne.hasIcon,
         hasCover: ne.hasCover,
@@ -232,9 +223,6 @@ function mergeEntries(notionEntries: NormalizedEntry[], fileEntries: FileEntry[]
         descLines: ne.description ? [ne.description] : [],
         feedbackLine: ne.feedback || "",
         source: "notion",
-        actualStart: ne.actualStart || "",
-        actualEnd: ne.actualEnd || "",
-        location: ne.location || "",
         notionId: ne.id,
         hasIcon: ne.hasIcon,
         hasCover: ne.hasCover,
@@ -267,9 +255,6 @@ function mergeEntries(notionEntries: NormalizedEntry[], fileEntries: FileEntry[]
         descLines: fe.descLines,
         feedbackLine: fe.feedbackLine,
         source: "file",
-        actualStart: "",
-        actualEnd: "",
-        location: "",
         notionId: "",
         hasIcon: true,
         hasCover: true,
@@ -303,9 +288,6 @@ function mergeEntries(notionEntries: NormalizedEntry[], fileEntries: FileEntry[]
         descLines: fe.descLines,
         feedbackLine: fe.feedbackLine,
         source: "file",
-        actualStart: "",
-        actualEnd: "",
-        location: "",
         notionId: "",
         hasIcon: true,
         hasCover: true,
@@ -424,12 +406,6 @@ function renderFile(date: string, entries: MergedEntry[]): string {
     }
     const tagPart = e.tags || "";
     lines.push(`- ${check} ${timePart} ${e.title}${tagPart}`);
-    if (e.actualStart && e.actualEnd) {
-      const actualMinutes = parseInt(e.actualStart.split(":")[0]) * 60 + parseInt(e.actualStart.split(":")[1]);
-      const startMinutes = parseInt(e.startTime.split(":")[0]) * 60 + parseInt(e.startTime.split(":")[1]);
-      const travelMinutes = actualMinutes - startMinutes;
-      lines.push(`  - 🕐 ${e.actualStart}-${e.actualEnd}（移動${travelMinutes}分）`);
-    }
     for (const desc of e.descLines) {
       lines.push(`  - ${desc}`);
     }
@@ -441,61 +417,18 @@ function renderFile(date: string, entries: MergedEntry[]): string {
   return lines.join("\n");
 }
 
-// --- Travel time enrichment ---
-
-function extractLocation(title: string): string | null {
-  const m = title.match(/\s*@\s*(.+)$/);
-  return m ? m[1].trim() : null;
-}
-
-async function resolveAddress(placeName: string): Promise<string> {
-  const env = loadEnv();
-  const apiKey = env["GOOGLE_MAPS_API_KEY"] || process.env.GOOGLE_MAPS_API_KEY;
-  if (apiKey) {
-    try {
-      const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(placeName)}&key=${apiKey}&language=ja`;
-      const res = await fetch(url);
-      const data = await res.json() as { results?: Array<{ formatted_address?: string }> };
-      if (data.results?.[0]?.formatted_address) {
-        return data.results[0].formatted_address;
-      }
-    } catch {
-      // fall through to return original
-    }
-  }
-  return placeName;
-}
-
-function subtractMinutes(time: string, minutes: number): string {
-  const [h, m] = time.split(":").map(Number);
-  const total = h * 60 + m - minutes;
-  const newH = Math.floor(total / 60);
-  const newM = total % 60;
-  return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
-}
-
-function addMinutes(time: string, minutes: number): string {
-  const [h, m] = time.split(":").map(Number);
-  const total = h * 60 + m + minutes;
-  const newH = Math.floor(total / 60);
-  const newM = total % 60;
-  return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
-}
+// --- Icon/cover enrichment ---
 
 async function enrichEntries(entries: MergedEntry[], date: string, dryRun: boolean): Promise<number> {
-  const homeAddress = getHomeAddress();
   let enriched = 0;
 
   for (const entry of entries) {
     if (entry.allDay) continue;
 
     const needsIconCover = !entry.hasIcon || !entry.hasCover;
-    const needsTravelTime = !entry.actualStart && (entry.location || extractLocation(entry.title));
+    if (!needsIconCover) continue;
 
-    if (!needsIconCover && !needsTravelTime) continue;
-
-    // Icon/cover enrichment
-    if (needsIconCover && !dryRun && entry.notionId) {
+    if (!dryRun && entry.notionId) {
       const updates: Record<string, unknown> = {};
       if (!entry.hasIcon) updates.icon = pickTaskIcon(entry.title);
       if (!entry.hasCover) updates.cover = pickCover();
@@ -504,75 +437,10 @@ async function enrichEntries(entries: MergedEntry[], date: string, dryRun: boole
         await notionFetch(getApiKey(), `/pages/${entry.notionId}`, updates, "PATCH");
         entry.hasIcon = true;
         entry.hasCover = true;
+        enriched++;
       }
-    } else if (needsIconCover && dryRun) {
+    } else if (dryRun) {
       console.log(`  ENRICH: ${entry.title} — would add icon/cover`);
-    }
-
-    // Travel time enrichment
-    if (!needsTravelTime) continue;
-
-    const location = entry.location || extractLocation(entry.title)!;
-    const eventStart = entry.startTime;
-    const eventEnd = entry.endTime;
-    if (!eventStart) continue;
-
-    console.log(`  ENRICH: ${entry.title} — calculating travel time...`);
-
-    try {
-      const departureIso = `${date}T${eventStart}:00+09:00`;
-      const result = await estimateTravelTime(homeAddress, location, departureIso);
-      const travelMinutes = result.minutes;
-
-      const newStart = subtractMinutes(eventStart, travelMinutes);
-      const newEnd = addMinutes(eventEnd || eventStart, travelMinutes);
-
-      console.log(`    🚃 移動${travelMinutes}分 → ${newStart}-${newEnd}（実際: ${eventStart}-${eventEnd}）`);
-
-      // Update merged entry
-      entry.actualStart = eventStart;
-      entry.actualEnd = eventEnd;
-      entry.startTime = newStart;
-      entry.endTime = newEnd;
-
-      // Resolve address
-      const resolvedAddress = await resolveAddress(location);
-      if (!entry.location) entry.location = resolvedAddress;
-
-      // Update Notion page
-      if (!dryRun && entry.notionId) {
-        // Determine the date property name for this DB
-        const dateProp = entry.dbName
-          ? SCHEDULE_DB_CONFIGS[entry.dbName as ScheduleDbName]?.dateProp || "日付"
-          : "日付";
-
-        const properties: Record<string, unknown> = {
-          [dateProp]: {
-            date: {
-              start: `${date}T${newStart}:00+09:00`,
-              end: `${date}T${newEnd}:00+09:00`,
-            },
-          },
-        };
-
-        // Only set 開始時間/終了時間/場所 for events DB (other DBs may not have these properties)
-        if (entry.dbName === "events") {
-          properties["開始時間"] = { rich_text: [{ text: { content: eventStart } }] };
-          properties["終了時間"] = { rich_text: [{ text: { content: eventEnd } }] };
-          properties["場所"] = { rich_text: [{ text: { content: resolvedAddress } }] };
-        }
-
-        const updates: Record<string, unknown> = { properties };
-        if (!entry.hasIcon) updates.icon = pickTaskIcon(entry.title);
-        if (!entry.hasCover) updates.cover = pickCover();
-
-        await notionFetch(getApiKey(), `/pages/${entry.notionId}`, updates, "PATCH");
-      }
-
-      enriched++;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.log(`    ⚠ Travel time error: ${msg}`);
     }
   }
 
@@ -858,8 +726,7 @@ async function main() {
           : "KEEP";
         const time = e.allDay ? "終日" : `${e.startTime}-${e.endTime}`;
         const fb = e.feedbackLine ? ` 💬 ${e.feedbackLine}` : "";
-        const travel = e.actualStart && e.changed ? ` (実際: ${e.actualStart}-${e.actualEnd})` : "";
-        console.log(`  ${tag}: ${e.done ? "✅" : "⬜"} ${time} ${e.title}${travel}${fb}`);
+        console.log(`  ${tag}: ${e.done ? "✅" : "⬜"} ${time} ${e.title}${fb}`);
 
         // Show before→after diff for UPDATE entries
         if (tag === "UPDATE" && e.source === "both") {

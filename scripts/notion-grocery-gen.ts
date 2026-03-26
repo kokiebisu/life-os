@@ -14,9 +14,13 @@ import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import {
   type ScheduleDbName,
-  getScheduleDbConfig, getScheduleDbConfigOptional,
-  queryDbByDateCached, normalizePages, notionFetch,
-  getApiKey, parseArgs,
+  getScheduleDbConfig,
+  getScheduleDbConfigOptional,
+  queryDbByDateCached,
+  normalizePages,
+  notionFetch,
+  getApiKey,
+  parseArgs,
 } from "./lib/notion";
 import { callClaude } from "./lib/claude";
 
@@ -39,7 +43,7 @@ const CATEGORY_EMOJI: Record<string, string> = {
   "卵・乳製品": "🥚",
   "豆腐・納豆": "🫘",
   "野菜・果物": "🥬",
-  "主食": "🍚",
+  主食: "🍚",
   "おやつ・その他": "🍫",
 };
 
@@ -77,7 +81,7 @@ interface GroceryListData {
 
 // --- Helpers ---
 
-function getWeekday(dateStr: string): string {
+function getWeekday(dateStr: string): string | undefined {
   const d = new Date(dateStr + "T12:00:00+09:00");
   return WEEKDAY_NAMES[d.getDay()];
 }
@@ -112,7 +116,10 @@ function parseDailyMeals(date: string, content: string): MealEntry[] {
   // Fallback: section header format: ## 朝食 HH:MM-HH:MM
   if (meals.length === 0) {
     const mealMap: Record<string, string> = {
-      "朝食": "朝", "昼食": "昼", "間食": "間食", "夕食": "夜",
+      朝食: "朝",
+      昼食: "昼",
+      間食: "間食",
+      夕食: "夜",
     };
     let currentMealKey: string | null = null;
     let currentMealTime: string | null = null;
@@ -121,14 +128,21 @@ function parseDailyMeals(date: string, content: string): MealEntry[] {
 
     const flushMeal = () => {
       if (currentMealKey && menuTitle) {
-        const details = ingredients.length > 0
-          ? `${menuTitle}\n  材料: ${ingredients.join("、")}`
-          : menuTitle;
+        const details =
+          ingredients.length > 0
+            ? `${menuTitle}\n  材料: ${ingredients.join("、")}`
+            : menuTitle;
         const isEatingOut = /外食/.test(menuTitle);
         const mealLabel = currentMealTime
           ? `${currentMealKey}(${currentMealTime})`
           : currentMealKey;
-        meals.push({ date, weekday, meal: mealLabel, menu: details, isEatingOut });
+        meals.push({
+          date,
+          weekday,
+          meal: mealLabel,
+          menu: details,
+          isEatingOut,
+        });
       }
       currentMealKey = null;
       currentMealTime = null;
@@ -137,7 +151,9 @@ function parseDailyMeals(date: string, content: string): MealEntry[] {
     };
 
     for (const line of lines) {
-      const headerMatch = line.match(/^##\s*(朝食|昼食|間食|夕食)\s+(\d{1,2}:\d{2})/);
+      const headerMatch = line.match(
+        /^##\s*(朝食|昼食|間食|夕食)\s+(\d{1,2}:\d{2})/,
+      );
       if (headerMatch) {
         flushMeal();
         currentMealKey = mealMap[headerMatch[1]] || headerMatch[1];
@@ -157,7 +173,12 @@ function parseDailyMeals(date: string, content: string): MealEntry[] {
         ingredients.push(line.replace(/^-\s+/, "").trim());
       }
       // First non-empty, non-list, non-heading line is the menu title
-      else if (!menuTitle && line.trim() && !line.startsWith("*") && !line.startsWith("#")) {
+      else if (
+        !menuTitle &&
+        line.trim() &&
+        !line.startsWith("*") &&
+        !line.startsWith("#")
+      ) {
         menuTitle = line.trim();
       }
     }
@@ -279,7 +300,13 @@ async function fetchEatingOutEvents(
   const dbConf = getScheduleDbConfigOptional("events");
   if (!dbConf) return [];
   const { dbId, config } = dbConf;
-  const data = await queryDbByDateCached(apiKey, dbId, config, startDate, endDate);
+  const data = await queryDbByDateCached(
+    apiKey,
+    dbId,
+    config,
+    startDate,
+    endDate,
+  );
   const entries = normalizePages(data.results, config, "events");
 
   const eatingKeywords =
@@ -372,7 +399,9 @@ function buildUserPrompt(
   sections.push(`## 期間: ${startDate} 〜 ${endDate}`);
   sections.push(`買い出し日: ${startDate}（${getWeekday(startDate)}）`);
   if (shoppingTimeJST) {
-    sections.push(`買い出し時刻: ${shoppingTimeJST}（この時刻より前の食事の食材は購入不要）`);
+    sections.push(
+      `買い出し時刻: ${shoppingTimeJST}（この時刻より前の食事の食材は購入不要）`,
+    );
   }
 
   // Meals by day
@@ -448,10 +477,10 @@ async function generateGroceryList(
     shoppingTimeJST,
   );
 
-  const result = await callClaude(
-    [{ role: "user", content: userPrompt }],
-    { system: SYSTEM_PROMPT, maxTokens: 4096 },
-  );
+  const result = await callClaude([{ role: "user", content: userPrompt }], {
+    system: SYSTEM_PROMPT,
+    maxTokens: 4096,
+  });
 
   // Extract JSON from response (might be wrapped in ```json ... ```)
   const jsonMatch = result.match(/\{[\s\S]*\}/);
@@ -468,7 +497,9 @@ function richText(text: string): any[] {
   return [{ type: "text", text: { content: text } }];
 }
 
-function styledText(segments: Array<{ text: string; bold?: boolean; color?: string }>): any[] {
+function styledText(
+  segments: Array<{ text: string; bold?: boolean; color?: string }>,
+): any[] {
   return segments.map((s) => ({
     type: "text",
     text: { content: s.text },
@@ -479,18 +510,13 @@ function styledText(segments: Array<{ text: string; bold?: boolean; color?: stri
   }));
 }
 
-function buildCategoryBlock(
-  cat: string,
-  items: GroceryItem[],
-): any {
+function buildCategoryBlock(cat: string, items: GroceryItem[]): any {
   const emoji = CATEGORY_EMOJI[cat] || "📦";
   const subtotal = items.reduce((sum, i) => sum + i.estimatedPrice, 0);
 
   const children = items.map((item) => {
     const refs =
-      item.mealRefs.length > 0
-        ? ` （${item.mealRefs.join(" / ")}）`
-        : "";
+      item.mealRefs.length > 0 ? ` （${item.mealRefs.join(" / ")}）` : "";
     return {
       object: "block",
       type: "to_do",
@@ -522,10 +548,8 @@ function buildNotionBlocks(data: GroceryListData): any[] {
   const blocks: any[] = [];
 
   // Summary callout (green background)
-  const summaryParts: Array<{ text: string; bold?: boolean; color?: string }> = [
-    { text: `💰 ${data.estimatedTotal}`, bold: true },
-    { text: "\n" },
-  ];
+  const summaryParts: Array<{ text: string; bold?: boolean; color?: string }> =
+    [{ text: `💰 ${data.estimatedTotal}`, bold: true }, { text: "\n" }];
   if (data.cookingNotes.length > 0) {
     summaryParts.push({ text: `🍳 ${data.cookingNotes.join(" / ")}` });
   }
@@ -649,7 +673,9 @@ function previewBlock(block: any, indent = ""): string {
     case "callout": {
       const icon = block[type]?.icon?.emoji || "💡";
       const color = block[type]?.color || "";
-      lines.push(`${indent}${icon} [${color}] ${text.replace(/\n/g, `\n${indent}  `)}`);
+      lines.push(
+        `${indent}${icon} [${color}] ${text.replace(/\n/g, `\n${indent}  `)}`,
+      );
       break;
     }
     case "to_do":
@@ -686,12 +712,8 @@ async function main() {
 
   if (!pageId && !date) {
     console.error("Usage:");
-    console.error(
-      "  bun run scripts/notion-grocery-gen.ts --page-id <id>",
-    );
-    console.error(
-      "  bun run scripts/notion-grocery-gen.ts --date 2026-02-17",
-    );
+    console.error("  bun run scripts/notion-grocery-gen.ts --page-id <id>");
+    console.error("  bun run scripts/notion-grocery-gen.ts --date 2026-02-17");
     console.error(
       "  bun run scripts/notion-grocery-gen.ts --date 2026-02-17 --dry-run",
     );
