@@ -7,6 +7,10 @@
 
 ## Active
 
+### Ivan (自分)
+- **内容:** For a good job with healthy work-life balance, so I can continue investing time in church ministries. And for God's timing and clarity around marriage — that the right person would come, and that I'd be the kind of person who can love well (known and still loved).
+- **開始日:** 2026-03-26
+
 ### Shinya
 - **内容:** 1週間の休みを有意義に使えるように。アサインメントも残っているのでこなせるように。
 - **開始日:** 2026-03-18
@@ -73,6 +77,10 @@
 ### かづき
 - **内容:** 変わらない状況や愛・周りの声に恐れを感じてしまうが、神様の声をちゃんと聞いて、正しく知恵のある選択を焦らず一つ一つできるように。
 - **開始日:** 2026-03-24
+
+### Daniel
+- **内容:** 最近、色欲との闘いが特につらくなっており、祈りが必要。ただ欲望がなくなるだけでなく、自分をそこに駆り立てる不安や傷のために、心に癒しが与えられるように。
+- **開始日:** 2026-03-26
 
 ---
 
