@@ -52,7 +52,14 @@ async function fetchEntriesForDate(date: string): Promise<NormalizedEntry[]> {
       const data = await queryDbByDateCached(apiKey, dbId, config, date, date);
       const entries = normalizePages(data.results || [], config, dbName);
       allEntries.push(...entries);
-    } catch { continue; }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("404") || msg.includes("Could not find database")) {
+        console.warn(`  SKIP [${dbName}] (${dbId}): not shared with integration`);
+        continue;
+      }
+      throw err;
+    }
   }
 
   return allEntries.sort((a, b) => {

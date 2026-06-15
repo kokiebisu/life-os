@@ -14,4 +14,4 @@
 2. 対応する md ファイルから該当行を削除
 3. 連鎖チェック: 削除対象に依存する予定を確認（買い出し→食事、イベント→関連タスク等）
 4. `bun run scripts/cache-status.ts --clear`
-5. `bun run scripts/notion-list.ts --date` で削除後の状態を確認
+5. `bun run scripts/notion/notion-list.ts --date` で削除後の状態を確認

@@ -8,7 +8,7 @@
 - 食事エントリは原則1時間。fridge.md で食材在庫を確認する
 
 ## DB 優先度
-events > todo > guitar = sound > routine > meals > groceries
+events > todo > routine > meals > groceries
 
 ## md↔Notion 同期（必須）
 - md を変更したら Notion も更新。逆も同様。片方だけで終わらせない
