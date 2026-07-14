@@ -1,0 +1,156 @@
+name: notion-sync
+
+on:
+  # schedule disabled (2026-06-04) — manual dispatch only
+  # schedule:
+  #   # 毎日 JST 03:00 = UTC 18:00（前日）
+  #   - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "同期する日付（YYYY-MM-DD）。空欄なら昨日"
+        type: string
+        default: ""
+      days:
+        description: "何日分同期するか（バックフィル用）"
+        type: string
+        default: "1"
+      dry_run:
+        description: "Dry run (no md write, no PR)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: notion-sync-${{ github.event.inputs.date || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      TZ: Asia/Tokyo
+      NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+      NOTION_EVENTS_DB: ${{ secrets.NOTION_EVENTS_DB }}
+      NOTION_TODO_DB: ${{ secrets.NOTION_TODO_DB }}
+      NOTION_MEALS_DB: ${{ secrets.NOTION_MEALS_DB }}
+      NOTION_GROCERIES_DB: ${{ secrets.NOTION_GROCERIES_DB }}
+      NOTION_DEVOTION_DB: ${{ secrets.NOTION_DEVOTION_DB }}
+      NOTION_STUDY_DB: ${{ secrets.NOTION_STUDY_DB }}
+      NOTION_GYM_DB: ${{ secrets.NOTION_GYM_DB }}
+      NOTION_INTERVIEW_PREP_DB: ${{ secrets.NOTION_INTERVIEW_PREP_DB }}
+      NOTION_STUDY_TOPIC_DB: ${{ secrets.NOTION_STUDY_TOPIC_DB }}
+      NOTION_OTHER_DB: ${{ secrets.NOTION_OTHER_DB }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Configure git
+        run: |
+          git config user.name "notion-sync[bot]"
+          git config user.email "notion-sync@users.noreply.github.com"
+
+      - name: Check disable flag
+        id: check_disable
+        run: |
+          if [ -f .notion-sync.disabled ]; then
+            echo "disabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "disabled=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Compute target date
+        if: steps.check_disable.outputs.disabled != 'true'
+        id: target
+        run: |
+          INPUT_DATE="${{ inputs.date }}"
+          if [ -n "$INPUT_DATE" ]; then
+            DATE="$INPUT_DATE"
+          else
+            DATE=$(TZ=Asia/Tokyo date -d "yesterday" +%Y-%m-%d)
+          fi
+          DAYS="${{ inputs.days }}"
+          DAYS="${DAYS:-1}"
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "days=$DAYS" >> $GITHUB_OUTPUT
+          echo "Target: $DATE (days=$DAYS)"
+
+      - name: Prepare branch
+        if: steps.check_disable.outputs.disabled != 'true' && inputs.dry_run != true
+        id: branch
+        run: |
+          BRANCH="chore/notion-sync-${{ steps.target.outputs.date }}"
+          echo "name=$BRANCH" >> $GITHUB_OUTPUT
+          git checkout -b "$BRANCH"
+
+      - name: Run notion-pull (dry-run)
+        if: steps.check_disable.outputs.disabled != 'true' && inputs.dry_run == true
+        run: |
+          bun run scripts/notion/notion-pull.ts \
+            --date "${{ steps.target.outputs.date }}" \
+            --days "${{ steps.target.outputs.days }}" \
+            --all-entries --no-enrich --dry-run
+
+      - name: Run notion-pull (production)
+        if: steps.check_disable.outputs.disabled != 'true' && inputs.dry_run != true
+        run: |
+          bun run scripts/notion/notion-pull.ts \
+            --date "${{ steps.target.outputs.date }}" \
+            --days "${{ steps.target.outputs.days }}" \
+            --all-entries --no-enrich
+
+      - name: Run fridge consume
+        if: steps.check_disable.outputs.disabled != 'true' && inputs.dry_run != true
+        run: |
+          DATE="${{ steps.target.outputs.date }}"
+          bun run scripts/notion/notion-fridge-consume.ts \
+            --from "$DATE" --to "$DATE" || true
+
+      - name: Check for changes
+        if: steps.check_disable.outputs.disabled != 'true' && inputs.dry_run != true
+        id: changes
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes to sync."
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit, push, create and merge PR
+        if: steps.check_disable.outputs.disabled != 'true' && inputs.dry_run != true && steps.changes.outputs.has_changes == 'true'
+        run: |
+          BRANCH="${{ steps.branch.outputs.name }}"
+          DATE="${{ steps.target.outputs.date }}"
+
+          git add -A
+          git commit -m "chore(notion-sync): sync from notion $DATE
+
+          Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
+          git push -u origin "$BRANCH"
+
+          PR_URL=$(gh api repos/${{ github.repository }}/pulls \
+            --method POST \
+            --field title="chore(notion-sync): sync from notion $DATE" \
+            --field head="$BRANCH" \
+            --field base="main" \
+            --field body="Notion から $DATE の予定/タスク/食事/買い出し/デボーション等を md に同期しました。" \
+            --jq '.html_url' 2>/dev/null) || \
+          PR_URL=$(gh api "repos/${{ github.repository }}/pulls?head=${{ github.repository_owner }}:$BRANCH&state=open" --jq '.[0].html_url')
+
+          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          gh api repos/${{ github.repository }}/pulls/$PR_NUMBER/merge \
+            --method PUT --field merge_method=squash
