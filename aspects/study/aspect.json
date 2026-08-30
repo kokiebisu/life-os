@@ -10,11 +10,22 @@
           "名前": "title",
           "日付": "date"
         }
+      },
+      {
+        "envKey": "NOTION_STUDY_TOPIC_DB",
+        "displayName": "勉強（トピック別）",
+        "schema": {
+          "名前": "title",
+          "日付": "date",
+          "カテゴリ": "select",
+          "トピック": "select"
+        }
       }
     ]
   },
   "commands": ["study"],
   "postSetupNotes": [
-    "Notion の「学習」DB に「カテゴリ (select)」「本 (text)」「Chapter (number)」プロパティを手動で追加してください"
+    "Notion の「学習」DB に「カテゴリ (select)」「本 (text)」「Chapter (number)」プロパティを手動で追加してください",
+    "Notion の「勉強（トピック別）」DB は カテゴリ (アルゴリズム/SQL/その他) と トピック (Sliding Window/DFS/BFS 等のパターン) で分類する"
   ]
 }

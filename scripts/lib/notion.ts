@@ -70,7 +70,7 @@ export function getDbIdOptional(envKey: string): string | null {
 
 // --- Schedule DB Config (calendar-based DBs) ---
 
-export type ScheduleDbName = "devotion" | "events" | "guitar" | "sound" | "meals" | "groceries" | "todo" | "other" | "study";
+export type ScheduleDbName = "devotion" | "events" | "meals" | "groceries" | "todo" | "other" | "study" | "topic" | "interview" | "investment" | "rebalance";
 
 export interface ScheduleDbConfig {
   envKey: string;
@@ -80,18 +80,21 @@ export interface ScheduleDbConfig {
   statusProp?: string;
   statusDone?: string;
   extraFilter?: Record<string, unknown>;
+  defaultIcon?: string;
 }
 
 export const SCHEDULE_DB_CONFIGS: Record<ScheduleDbName, ScheduleDbConfig> = {
   devotion: { envKey: "NOTION_DEVOTION_DB", titleProp: "Name", dateProp: "日付", descProp: "" },
   events:  { envKey: "NOTION_EVENTS_DB", titleProp: "名前", dateProp: "日付", descProp: "" },
-  guitar:  { envKey: "NOTION_CURRICULUM_DB", titleProp: "名前", dateProp: "日付", descProp: "", extraFilter: { property: "カリキュラム", select: { equals: "ギター" } } },
-  sound:   { envKey: "NOTION_CURRICULUM_DB", titleProp: "名前", dateProp: "日付", descProp: "", extraFilter: { property: "カリキュラム", select: { equals: "音響" } } },
-  meals:      { envKey: "NOTION_MEALS_DB", titleProp: "名前", dateProp: "日付", descProp: "" },
-  groceries:  { envKey: "NOTION_GROCERIES_DB", titleProp: "件名", dateProp: "日付", descProp: "" },
+  meals:      { envKey: "NOTION_MEALS_DB", titleProp: "名前", dateProp: "日付", descProp: "", defaultIcon: "🍽️" },
+  groceries:  { envKey: "NOTION_GROCERIES_DB", titleProp: "件名", dateProp: "日付", descProp: "", defaultIcon: "🛒" },
   todo:    { envKey: "NOTION_TODO_DB", titleProp: "タスク名", dateProp: "日付", descProp: "" },
   other:   { envKey: "NOTION_OTHER_DB", titleProp: "名前", dateProp: "日付", descProp: "" },
-  study:   { envKey: "NOTION_STUDY_DB", titleProp: "名前", dateProp: "日付", descProp: "" },
+  study:     { envKey: "NOTION_STUDY_DB", titleProp: "名前", dateProp: "日付", descProp: "" },
+  topic:     { envKey: "NOTION_STUDY_TOPIC_DB", titleProp: "名前", dateProp: "日付", descProp: "" },
+  interview: { envKey: "NOTION_INTERVIEW_PREP_DB", titleProp: "名前", dateProp: "日付", descProp: "" },
+  investment: { envKey: "NOTION_INVESTMENT_DB", titleProp: "名前", dateProp: "日付", descProp: "", defaultIcon: "📈" },
+  rebalance:  { envKey: "NOTION_REBALANCE_DB", titleProp: "名前", dateProp: "日付", descProp: "", defaultIcon: "♻️" },
 };
 
 export function getScheduleDbConfig(name: ScheduleDbName): { apiKey: string; dbId: string; config: ScheduleDbConfig } {
@@ -106,64 +109,6 @@ export function getScheduleDbConfigOptional(name: ScheduleDbName): { apiKey: str
   return { apiKey: getApiKey(), dbId, config };
 }
 
-// --- Article DB Config ---
-
-export type ArticleDbName = "articles";
-
-export interface ArticleDbConfig {
-  envKey: string;
-  titleProp: string;
-  sourceProp: string;
-  urlProp: string;
-  aspectProp: string;
-  statusProp: string;
-}
-
-export const ARTICLE_DB_CONFIGS: Record<ArticleDbName, ArticleDbConfig> = {
-  articles: {
-    envKey: "NOTION_ARTICLES_DB",
-    titleProp: "タイトル",
-    sourceProp: "ソース",
-    urlProp: "URL",
-    aspectProp: "Aspect",
-    statusProp: "Status",
-  },
-};
-
-export function getArticleDbConfig(name: ArticleDbName): { apiKey: string; dbId: string; config: ArticleDbConfig } {
-  const config = ARTICLE_DB_CONFIGS[name];
-  return { apiKey: getApiKey(), dbId: getDbId(config.envKey), config };
-}
-
-// --- Investment DB Config ---
-
-export type InvestmentDbName = "investment";
-
-export interface InvestmentDbConfig {
-  envKey: string;
-  titleProp: string;
-  dateProp: string;
-  statusProp: string;
-  typeProp: string;
-  notesProp: string;
-}
-
-export const INVESTMENT_DB_CONFIGS: Record<InvestmentDbName, InvestmentDbConfig> = {
-  investment: {
-    envKey: "NOTION_INVESTMENT_DB",
-    titleProp: "Investment ",  // trailing space (Notion property名そのまま)
-    dateProp: "Buy Date",
-    statusProp: "Status",
-    typeProp: "Type",
-    notesProp: "Notes",
-  },
-};
-
-export function getInvestmentDbConfig(name: InvestmentDbName): { apiKey: string; dbId: string; config: InvestmentDbConfig } {
-  const config = INVESTMENT_DB_CONFIGS[name];
-  return { apiKey: getApiKey(), dbId: getDbId(config.envKey), config };
-}
-
 export function getDevotionConfig() {
   return { apiKey: getApiKey(), dbId: getDbId("NOTION_DEVOTION_DB") };
 }
@@ -174,14 +119,6 @@ export function getMealsConfig() {
 
 export function getEventsConfig() {
   return getScheduleDbConfig("events");
-}
-
-export function getGuitarConfig() {
-  return getScheduleDbConfig("guitar");
-}
-
-export function getSoundConfig() {
-  return getScheduleDbConfig("sound");
 }
 
 export function getTodoConfig() {
@@ -324,7 +261,8 @@ export async function notionFetch(apiKey: string, path: string, body?: unknown, 
   });
   if (!res.ok) {
     const err = await res.json();
-    throw new Error(`Notion API ${res.status}: ${(err as any).message}`);
+    const msg = (err as any).message ?? (err as any).error?.message ?? JSON.stringify(err);
+    throw new Error(`Notion API ${res.status}: ${msg}`);
   }
   if (res.status === 204) return {};
   return res.json();
@@ -358,6 +296,16 @@ export function todayJST(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
 }
 
+/**
+ * 時刻を含む ISO 文字列にタイムゾーンがなければ +09:00 (JST) を自動付与する。
+ * 日付のみ（時刻なし）の場合はそのまま返す。
+ */
+export function ensureJST(dateStr: string): string {
+  if (!dateStr.includes("T")) return dateStr; // date-only
+  if (/[+\-]\d{2}:\d{2}$/.test(dateStr) || dateStr.endsWith("Z")) return dateStr; // already has tz
+  return dateStr + "+09:00";
+}
+
 // --- Icon & Cover helpers ---
 
 const TASK_ICON_KEYWORDS: [RegExp, string][] = [
@@ -370,12 +318,10 @@ const TASK_ICON_KEYWORDS: [RegExp, string][] = [
   [/料理|自炊|cook/i, "🍳"],
   [/勉強|学習|study/i, "📖"],
   [/読書|book|reading/i, "📚"],
-  [/sumitsugi/i, "🧶"],
   [/面接|interview/i, "👔"],
   [/ミーティング|会議|MTG|meeting|壁打ち/i, "🤝"],
   [/医者|病院|歯医者/i, "🏥"],
   [/引越|移住|fukuoka/i, "🏠"],
-  [/投資|invest/i, "📈"],
   [/散歩|walk/i, "🚶"],
   [/昼寝|仮眠|nap/i, "😴"],
   [/開発|develop|coding|プログラ/i, "💻"],
@@ -402,17 +348,7 @@ const GRADIENT_COVERS = [
   "https://images.unsplash.com/photo-1557682268-e3955ed5d83f?w=1200",
 ];
 
-export function pickArticleIcon(source: string): { type: "emoji"; emoji: string } {
-  const map: Record<string, string> = {
-    "Hacker News": "🟠",
-    "Zenn": "💠",
-    "note": "📝",
-    "Twitter": "🐦",
-  };
-  return { type: "emoji", emoji: map[source] || "📰" };
-}
-
-export function pickTaskIcon(title: string, defaultEmoji = "📌"): { type: "emoji"; emoji: string } {
+export function pickTaskIcon(title: string, defaultEmoji = "📅"): { type: "emoji"; emoji: string } {
   for (const [pattern, emoji] of TASK_ICON_KEYWORDS) {
     if (pattern.test(title)) return { type: "emoji", emoji };
   }
@@ -420,8 +356,7 @@ export function pickTaskIcon(title: string, defaultEmoji = "📌"): { type: "emo
 }
 
 export function pickCover(): { type: "external"; external: { url: string } } {
-  const url = GRADIENT_COVERS[Math.floor(Math.random() * GRADIENT_COVERS.length)];
-  return { type: "external", external: { url } };
+  return { type: "external", external: { url: GRADIENT_COVERS[0] } };
 }
 
 // --- Title Normalization ---
@@ -448,6 +383,37 @@ export interface SimilarEntry {
 }
 
 /**
+ * 既存エントリと新規エントリのタイトル・時間帯を比較し、類似判定を返す。
+ * 時間帯（start/end）を options で指定すると、時刻が一致しないエントリは除外される。
+ *
+ * - "exact": 正規化タイトルが完全一致
+ * - "similar": 正規化タイトルが部分一致（どちらかがもう一方を包含）
+ * - null: タイトル不一致または時間帯不一致
+ */
+export function evaluateEntryMatch(
+  existingTitle: string,
+  existingStart: string | null,
+  existingEnd: string | null,
+  newTitle: string,
+  options?: { start?: string; end?: string },
+): "exact" | "similar" | null {
+  const normalizedNew = normalizeTitle(newTitle);
+  const normalizedExisting = normalizeTitle(existingTitle);
+
+  const titleMatch = normalizedNew === normalizedExisting;
+  const titleSimilar = !titleMatch &&
+    (normalizedNew.includes(normalizedExisting) || normalizedExisting.includes(normalizedNew));
+
+  if (!titleMatch && !titleSimilar) return null;
+
+  // 時間帯が異なれば別エントリとして許可（Devotion 朝/夜等）
+  if (options?.start && existingStart && options.start !== existingStart) return null;
+  if (options?.end && existingEnd && options.end !== existingEnd) return null;
+
+  return titleMatch ? "exact" : "similar";
+}
+
+/**
  * 全スケジュール DB を横断して、指定日に類似タイトルのエントリを検索。
  * options.start を指定すると、時間帯が異なるエントリを除外する（Devotion 朝/夜の区別用）。
  */
@@ -461,7 +427,6 @@ export async function findSimilarEntries(
   },
 ): Promise<SimilarEntry[]> {
   const apiKey = getApiKey();
-  const normalizedNew = normalizeTitle(title);
   const results: SimilarEntry[] = [];
 
   const dbNames: ScheduleDbName[] = options?.db
@@ -482,21 +447,15 @@ export async function findSimilarEntries(
     for (const page of pages) {
       const existingTitle = (page.properties?.[config.titleProp]?.title || [])
         .map((t: any) => t.plain_text || "").join("");
-      const normalizedExisting = normalizeTitle(existingTitle);
-
-      const titleMatch = normalizedNew === normalizedExisting;
-      const titleSimilar = !titleMatch &&
-        (normalizedNew.includes(normalizedExisting) || normalizedExisting.includes(normalizedNew));
-
-      if (!titleMatch && !titleSimilar) continue;
-
       const existingDate = page.properties?.[config.dateProp]?.date;
       const existingStart = getTimeFromISO(existingDate?.start);
       const existingEnd = getTimeFromISO(existingDate?.end);
 
-      // 時間帯が異なれば別エントリとして許可（Devotion 朝/夜等）
-      if (options?.start && existingStart && options.start !== existingStart) continue;
-      if (options?.end && existingEnd && options.end !== existingEnd) continue;
+      const matchType = evaluateEntryMatch(existingTitle, existingStart, existingEnd, title, {
+        start: options?.start,
+        end: options?.end,
+      });
+      if (!matchType) continue;
 
       results.push({
         id: page.id,
@@ -504,10 +463,65 @@ export async function findSimilarEntries(
         db: dbName,
         start: existingStart,
         end: existingEnd,
-        matchType: titleMatch ? "exact" : "similar",
+        matchType,
       });
     }
   }
 
   return results;
+}
+
+// --- DB Schema Validation ---
+
+const schemaCache = createCache("notion-schema", { defaultTtlMs: 30 * 60_000 }); // 30 min
+
+interface DbSchema {
+  properties: Record<string, { type: string; select?: { options: { name: string }[] }; status?: { options: { name: string }[] } }>;
+}
+
+async function fetchDbSchema(dbId: string): Promise<DbSchema> {
+  const cached = schemaCache.get<DbSchema>(dbId);
+  if (cached) return cached;
+
+  const apiKey = getApiKey();
+  const data = await notionFetch(apiKey, `/databases/${dbId}`, undefined, "GET");
+  const schema: DbSchema = { properties: {} };
+  for (const [name, prop] of Object.entries(data.properties ?? {})) {
+    const p = prop as any;
+    schema.properties[name] = { type: p.type };
+    if (p.type === "select" && p.select?.options) {
+      schema.properties[name].select = { options: p.select.options.map((o: any) => ({ name: o.name })) };
+    }
+    if (p.type === "status" && p.status?.options) {
+      schema.properties[name].status = { options: p.status.options.map((o: any) => ({ name: o.name })) };
+    }
+  }
+  schemaCache.set(dbId, schema);
+  return schema;
+}
+
+/**
+ * select/status プロパティの値がDBスキーマに存在するか検証する。
+ * 存在しない場合はエラーをthrow（有効な選択肢一覧を含む）。
+ */
+export async function validateSelectValue(dbId: string, propName: string, value: string): Promise<void> {
+  const schema = await fetchDbSchema(dbId);
+  const prop = schema.properties[propName];
+  if (!prop) {
+    const available = Object.keys(schema.properties).join(", ");
+    throw new Error(`Property "${propName}" not found in DB. Available: ${available}`);
+  }
+  if (prop.type === "select") {
+    const options = prop.select?.options?.map(o => o.name) ?? [];
+    if (!options.includes(value)) {
+      throw new Error(`Invalid select value "${value}" for "${propName}". Valid options: ${options.join(", ")}`);
+    }
+  } else if (prop.type === "status") {
+    const options = prop.status?.options?.map(o => o.name) ?? [];
+    if (!options.includes(value)) {
+      throw new Error(`Invalid status value "${value}" for "${propName}". Valid options: ${options.join(", ")}`);
+    }
+  } else {
+    throw new Error(`Property "${propName}" is type "${prop.type}", not select/status`);
+  }
 }
