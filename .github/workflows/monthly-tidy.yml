@@ -1,0 +1,125 @@
+name: monthly-tidy
+
+# 月1で指示ファイル群（CLAUDE.md / .ai/rules / aspects/**/CLAUDE.md / skills/**/SKILL.md）を
+# scan し、Safe な findings を自動適用 + Risky を含めた report を PR で提出する。
+
+on:
+  # schedule disabled (2026-06-04) — manual dispatch only
+  # schedule:
+  #   # 毎月1日 JST 03:00 = UTC 18:00（前月末）
+  #   - cron: "0 18 1 * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (scan only, no PR)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: monthly-tidy
+  cancel-in-progress: false
+
+jobs:
+  tidy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      TZ: Asia/Tokyo
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Configure git
+        run: |
+          git config user.name "monthly-tidy[bot]"
+          git config user.email "monthly-tidy@users.noreply.github.com"
+
+      - name: Run scan
+        id: scan
+        run: |
+          bun run scripts/tidy/scan.ts > scan.json
+          SAFE=$(jq '.safe | length' scan.json)
+          RISKY=$(jq '.risky | length' scan.json)
+          echo "safe=$SAFE" >> $GITHUB_OUTPUT
+          echo "risky=$RISKY" >> $GITHUB_OUTPUT
+          echo "Scan: safe=$SAFE risky=$RISKY"
+          bun run scripts/tidy/scan.ts --pretty > scan-report.md
+
+      - name: Exit early if nothing to do
+        if: steps.scan.outputs.safe == '0' && steps.scan.outputs.risky == '0'
+        run: |
+          echo "No findings. Exiting."
+          exit 0
+
+      - name: Apply Safe findings
+        if: inputs.dry_run != true && steps.scan.outputs.safe != '0'
+        run: bun run scripts/tidy/apply-safe.ts
+
+      - name: Check for changes
+        if: inputs.dry_run != true
+        id: changes
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Open PR with applied fixes + report
+        if: inputs.dry_run != true && (steps.changes.outputs.has_changes == 'true' || steps.scan.outputs.risky != '0')
+        run: |
+          BRANCH="chore/monthly-tidy-$(date -u +%Y-%m)"
+          git push origin --delete "$BRANCH" 2>/dev/null || true
+          git checkout -b "$BRANCH"
+
+          if [ "${{ steps.changes.outputs.has_changes }}" = "true" ]; then
+            git add -A
+            git commit -m "chore: tidy instruction files (auto)"
+          else
+            git commit --allow-empty -m "chore: monthly tidy report (no auto-fixes)"
+          fi
+          git push -u origin "$BRANCH"
+
+          {
+            echo "## Summary"
+            echo ""
+            echo "Monthly automated /tidy scan."
+            echo ""
+            echo "- **Safe findings auto-applied:** ${{ steps.scan.outputs.safe }}"
+            echo "- **Risky findings (manual review):** ${{ steps.scan.outputs.risky }}"
+            echo ""
+            echo "## Report"
+            echo ""
+            cat scan-report.md
+            echo ""
+            echo "---"
+            echo ""
+            echo "_Opened by \`.github/workflows/monthly-tidy.yml\`. Review Risky items manually._"
+          } > pr-body.md
+
+          bun run scripts/create-pr.ts \
+            --title "chore: monthly tidy ($(date -u +%Y-%m))" \
+            --body "$(cat pr-body.md)" \
+            --head "$BRANCH"
+
+      - name: Upload scan artifact (dry-run)
+        if: inputs.dry_run == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: tidy-scan-report
+          path: |
+            scan.json
+            scan-report.md

@@ -17,7 +17,7 @@ import { type ScheduleDbName, parseArgs, findSimilarEntries } from "./lib/notion
 const DB_LABELS: Record<ScheduleDbName, string> = {
   devotion: "デボーション", events: "イベント", todo: "やること",
   guitar: "ギター", sound: "音響", meals: "食事", groceries: "買い出し", other: "その他",
-  study: "学習",
+  study: "学習", interview: "面接対策",
 };
 
 async function main() {

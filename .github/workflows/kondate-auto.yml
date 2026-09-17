@@ -1,0 +1,108 @@
+name: kondate-auto
+
+on:
+  # schedule disabled (2026-06-04) — manual dispatch only
+  # schedule:
+  #   # 毎日 JST 03:00 = UTC 18:00（前日）
+  #   - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no Notion write, no PR)"
+        type: boolean
+        default: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      TZ: Asia/Tokyo
+      NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+      NOTION_MEALS_DB: ${{ secrets.NOTION_MEALS_DB }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Configure git
+        run: |
+          git config user.name "kondate-auto[bot]"
+          git config user.email "kondate-auto@users.noreply.github.com"
+
+      - name: Check disable flag
+        id: check_disable
+        run: |
+          if [ -f .kondate-auto.disabled ]; then
+            echo "disabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "disabled=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Prepare branch
+        if: steps.check_disable.outputs.disabled != 'true' && inputs.dry_run != true
+        id: branch
+        run: |
+          BRANCH="chore/kondate-auto-$(TZ=Asia/Tokyo date +%Y-%m-%d)"
+          echo "name=$BRANCH" >> $GITHUB_OUTPUT
+          git push origin --delete "$BRANCH" 2>/dev/null || true
+          git checkout -b "$BRANCH"
+
+      - name: Run kondate-auto (dry-run)
+        if: steps.check_disable.outputs.disabled != 'true' && inputs.dry_run == true
+        run: bun run scripts/kondate/kondate-auto.ts --dry-run
+
+      - name: Run kondate-auto (production)
+        if: steps.check_disable.outputs.disabled != 'true' && inputs.dry_run != true
+        run: bun run scripts/kondate/kondate-auto.ts
+
+      - name: Check for changes
+        if: steps.check_disable.outputs.disabled != 'true' && inputs.dry_run != true
+        id: changes
+        run: |
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit, push, create and merge PR
+        if: steps.check_disable.outputs.disabled != 'true' && inputs.dry_run != true && steps.changes.outputs.has_changes == 'true'
+        run: |
+          BRANCH="${{ steps.branch.outputs.name }}"
+          TODAY=$(TZ=Asia/Tokyo date +%m/%d)
+          END=$(TZ=Asia/Tokyo date -d '+2 days' +%m/%d)
+
+          git add aspects/diet/kondate-history.md aspects/diet/daily/
+          git commit -m "chore(kondate-auto): auto-generate meals for $TODAY..$END
+
+          Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>"
+          git push -u origin "$BRANCH"
+
+          PR_URL=$(gh api repos/${{ github.repository }}/pulls \
+            --method POST \
+            --field title="chore(kondate-auto): auto-generate meals for $TODAY..$END" \
+            --field head="$BRANCH" \
+            --field base="main" \
+            --field body="自動生成された作り置きメニューを登録しました。" \
+            --jq '.html_url')
+
+          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          gh api repos/${{ github.repository }}/pulls/$PR_NUMBER/merge \
+            --method PUT --field merge_method=squash

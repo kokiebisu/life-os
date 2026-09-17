@@ -13,14 +13,21 @@ import { parseArgs } from "./lib/notion";
 
 const DEVOTIONS_DIR = join(import.meta.dir, "../aspects/devotions");
 
-interface LintResult {
+export interface LintResult {
   file: string;
   issues: string[];
 }
 
-function lint(filename: string): LintResult {
-  const filepath = join(DEVOTIONS_DIR, filename);
-  const content = readFileSync(filepath, "utf-8");
+/**
+ * Pure devotion-lint logic. Validates a devotion markdown body against the
+ * canonical structure (frontmatter, section headings, SOAP parts).
+ * Prayer is handled separately by the /pray skill, so devotion files no longer
+ * contain a Closing Prayer section.
+ *
+ * @param filename Used for reporting; should be a basename like "2026-04-25.md".
+ * @param content Full markdown content of the devotion file.
+ */
+export function lintContent(filename: string, content: string): LintResult {
   const issues: string[] = [];
 
   // 1. frontmatter check
@@ -92,36 +99,47 @@ function lint(filename: string): LintResult {
   return { file: filename, issues };
 }
 
-// --- main ---
-const { positional } = parseArgs();
-
-let files: string[];
-if (positional.length > 0) {
-  files = positional.map((f) => f.replace(/.*\//, "")); // strip path prefix
-} else {
-  files = readdirSync(DEVOTIONS_DIR)
-    .filter((f) => /^2\d{3}-\d{2}-\d{2}\.md$/.test(f))
-    .sort();
+function lint(filename: string): LintResult {
+  const filepath = join(DEVOTIONS_DIR, filename);
+  const content = readFileSync(filepath, "utf-8");
+  return lintContent(filename, content);
 }
 
-if (files.length === 0) {
-  console.log("No devotion files found.");
-  process.exit(0);
-}
+function main() {
+  const { positional } = parseArgs();
 
-let hasErrors = false;
-
-for (const file of files) {
-  const result = lint(file);
-  if (result.issues.length === 0) {
-    console.log(`✓ ${result.file} — OK`);
+  let files: string[];
+  if (positional.length > 0) {
+    files = positional.map((f) => f.replace(/.*\//, "")); // strip path prefix
   } else {
-    hasErrors = true;
-    console.log(`✗ ${result.file} — ${result.issues.length} issue(s):`);
-    for (const issue of result.issues) {
-      console.log(`  - ${issue}`);
+    files = readdirSync(DEVOTIONS_DIR)
+      .filter((f) => /^2\d{3}-\d{2}-\d{2}\.md$/.test(f))
+      .sort();
+  }
+
+  if (files.length === 0) {
+    console.log("No devotion files found.");
+    process.exit(0);
+  }
+
+  let hasErrors = false;
+
+  for (const file of files) {
+    const result = lint(file);
+    if (result.issues.length === 0) {
+      console.log(`✓ ${result.file} — OK`);
+    } else {
+      hasErrors = true;
+      console.log(`✗ ${result.file} — ${result.issues.length} issue(s):`);
+      for (const issue of result.issues) {
+        console.log(`  - ${issue}`);
+      }
     }
   }
+
+  process.exit(hasErrors ? 1 : 0);
 }
 
-process.exit(hasErrors ? 1 : 0);
+if (import.meta.main) {
+  main();
+}

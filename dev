@@ -1,13 +1,51 @@
 #!/usr/bin/env bash
 set -e  # Exit on error
 
-# 1. Check if already in container
+BRANCH="${1:-}"
+
+# === Worktree mode: ./dev <branch> ===
+# Creates .worktrees/<branch> from main and opens it in a new VS Code window.
+# Each session lives in its own worktree, so git status / /pr stays scoped.
+if [ -n "$BRANCH" ]; then
+  if [ -z "$REMOTE_CONTAINERS" ] && [ -z "$CODESPACES" ]; then
+    cat >&2 <<EOF
+Error: Worktree mode must run inside the devcontainer.
+
+  1. Open VS Code and attach to the devcontainer (run './dev' first if needed).
+  2. In the integrated terminal, run: ./dev $BRANCH
+EOF
+    exit 1
+  fi
+
+  if ! command -v code &> /dev/null; then
+    echo "Error: 'code' CLI not found. Are you running inside VS Code's devcontainer?" >&2
+    exit 1
+  fi
+
+  WT=".worktrees/$BRANCH"
+
+  if git worktree list --porcelain | grep -qE "^worktree .*/$WT$"; then
+    echo "Worktree already exists: $WT — opening in new window..."
+  elif git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+    echo "Branch '$BRANCH' exists. Adding worktree at $WT..."
+    git worktree add "$WT" "$BRANCH"
+  else
+    echo "Creating worktree '$WT' with new branch '$BRANCH' from main..."
+    git worktree add "$WT" -b "$BRANCH" main
+  fi
+
+  echo "Opening $WT in new VS Code window..."
+  code "$WT"
+  exit 0
+fi
+
+# === Default mode: start devcontainer + open Claude Code shell ===
+
 if [ -n "$REMOTE_CONTAINERS" ] || [ -n "$CODESPACES" ]; then
   echo "[OK] Already in devcontainer!"
   exit 0
 fi
 
-# 2. Determine how to run devcontainer CLI
 run_devcontainer() {
   if command -v bunx &> /dev/null; then
     bunx @devcontainers/cli "$@"
@@ -23,16 +61,14 @@ run_devcontainer() {
   fi
 }
 
-# 3. Start container if needed (idempotent)
 echo "Starting devcontainer..."
 if ! run_devcontainer up --workspace-folder .; then
   echo "Error: Failed to start devcontainer. Check Docker is running." >&2
   exit 1
 fi
 
-# 4. Open shell with Claude Code
 echo "Opening shell with Claude Code..."
-if ! run_devcontainer exec --workspace-folder . bash -c "claude; exec bash"; then
+if ! run_devcontainer exec --workspace-folder . bash -c "claude agents; exec bash"; then
   echo "Error: Failed to open shell in devcontainer." >&2
   exit 1
 fi

@@ -6,6 +6,7 @@
  */
 
 import { loadEnv } from "./notion";
+import { callLLM } from "./llm";
 import { join } from "path";
 import { createCache, cacheKey } from "./cache";
 
@@ -108,23 +109,10 @@ async function estimateViaClaude(
 ): Promise<TravelEstimate> {
   const prompt = `${origin}から${destination}まで電車と徒歩で何分かかりますか？数字だけ答えてください。例: 35`;
 
-  const env = { ...process.env };
-  delete env.CLAUDECODE;
-
-  const proc = Bun.spawn(
-    ["claude", "-p", prompt, "--model", "haiku"],
-    { stdout: "pipe", stderr: "pipe", env },
+  const stdout = await callLLM(
+    [{ role: "user", content: prompt }],
+    { model: "claude-haiku-4-5-20251001" },
   );
-
-  const [stdout, , exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-
-  if (exitCode !== 0) {
-    throw new Error("claude -p failed");
-  }
 
   const match = stdout.trim().match(/(\d+)/);
   if (!match) {
